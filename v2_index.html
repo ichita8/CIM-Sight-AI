@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CIM-Sight AI — Forensic CIM Audit Engine</title>
+  <meta name="description" content="AI-powered CIM screener for investment banking and private equity due diligence. Surfaces hidden risks, math errors, and financial red flags in seconds." />
+  <meta property="og:title" content="CIM-Sight AI — Forensic CIM Audit Engine" />
+  <meta property="og:description" content="Upload any CIM. Get institutional-grade red flags in under 60 seconds." />
+  <meta property="og:type" content="website" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href__="https://fonts.googleapis.com" />
+  <link rel="preconnect" href__="https://fonts.gstatic.com" crossorigin />
+  <link href__="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #C9A84C;
+      --gold-bright: #F0C060;
+      --gold-dim: rgba(201,168,76,0.15);
+      --mint: #00F5A0;
+      --mint-dim: rgba(0,245,160,0.12);
+      --crimson: #FF3B3B;
+      --crimson-dim: rgba(255,59,59,0.12);
+      --obsidian: #0A0B0E;
+      --obsidian-layer: #14161C;
+      --bg: #080A0E;
+      --card: #0F1117;
+      --fg: #D4DCE9;
+      --muted: #64748B;
+      --border: rgba(255,255,255,0.07);
+      --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px; height: 64px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    nav.scrolled {
+      background: rgba(8,10,14,0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand { font-family: var(--font-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.15em; color: var(--gold); text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--fg); }
+    .nav-cta { padding: 8px 20px; background: var(--gold); color: #080A0E; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-decoration: none; transition: background 0.2s; }
+    .nav-cta:hover { background: var(--gold-bright); }
+
+    /* ─── STATUS BAR ─── */
+    .status-bar {
+      position: fixed; top: 64px; left: 0; right: 0; z-index: 40;
+      display: flex; align-items: center; justify-content: center; gap: 32px;
+      padding: 10px 40px;
+      background: rgba(13,17,23,0.9); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; color: var(--muted);
+    }
+    .status-item { display: flex; align-items: center; gap: 8px; }
+    .status-item .label { color: #4A5568; }
+    .status-item .val { font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px; }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #3DD68C; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+    .status-sep { color: #4A5568; }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative; min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 160px 24px 96px;
+      overflow: hidden;
+    }
+    .hero-glow {
+      position: absolute; top: 30%; left: 50%; transform: translate(-50%,-50%);
+      width: 700px; height: 400px; pointer-events: none;
+      background: radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 70%);
+    }
+    .hero-bg-img {
+      position: absolute; inset: 0; opacity: 0.06; pointer-events: none;
+    }
+    .hero-bg-img img { width: 100%; height: 100%; object-fit: cover; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border: 1px solid rgba(255,255,255,0.12); border-radius: 99px;
+      font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+      color: var(--gold); text-transform: uppercase; margin-bottom: 32px;
+      background: rgba(201,168,76,0.06);
+    }
+    .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: pulse 1.5s ease-in-out infinite; }
+    h1 {
+      font-size: clamp(42px,7vw,80px); font-weight: 900; line-height: 1.05;
+      letter-spacing: -0.03em; margin-bottom: 28px; max-width: 900px;
+    }
+    h1 .gold { color: var(--gold); }
+    .hero-sub {
+      font-size: 18px; color: var(--muted); max-width: 580px;
+      line-height: 1.7; margin-bottom: 48px;
+    }
+    .cta-row { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 64px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 16px 32px; background: var(--gold); color: #080A0E;
+      font-weight: 800; font-size: 14px; letter-spacing: 0.05em;
+      border-radius: 6px; text-decoration: none;
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover { background: var(--gold-bright); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(201,168,76,0.25); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 15px 28px; border: 1px solid rgba(255,255,255,0.12); color: var(--fg);
+      font-weight: 600; font-size: 14px; letter-spacing: 0.03em;
+      border-radius: 6px; text-decoration: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-secondary:hover { border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04); }
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      width: 100%; max-width: 800px;
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      background: rgba(255,255,255,0.07);
+      gap: 1px;
+    }
+    .stat-cell { background: var(--card); padding: 24px 20px; text-align: center; }
+    .stat-num { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; margin-bottom: 6px; }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* ─── DIVIDER ─── */
+    .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.05); }
+
+    /* ─── SECTIONS ─── */
+    section { position: relative; }
+    .section-inner { max-width: 1100px; margin: 0 auto; padding: 96px 40px; }
+    .section-tag { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.15em; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
+    h2 { font-size: clamp(28px,4vw,44px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 16px; }
+    .section-desc { font-size: 15px; color: var(--muted); max-width: 540px; line-height: 1.7; margin-bottom: 56px; }
+
+    /* ─── PIPELINE GRID ─── */
+    .pipeline-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; border: 1px solid var(--border);
+    }
+    .pipeline-card {
+      background: var(--card); padding: 40px;
+      transition: background 0.2s;
+    }
+    .pipeline-card:hover { background: var(--obsidian-layer); }
+    .card-tag { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; letter-spacing: 0.1em; margin-bottom: 20px; }
+    .card-icon { font-size: 28px; margin-bottom: 16px; }
+    .card-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+    /* ─── RED FLAGS ─── */
+    .flags-list { display: flex; flex-direction: column; gap: 16px; }
+    .flag-card {
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .flag-card:hover { border-color: rgba(255,255,255,0.12); }
+    .flag-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 12px;
+    }
+    .flag-header-left { display: flex; align-items: center; gap: 12px; }
+    .cat-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; }
+    .cat-math { background: rgba(74,158,255,0.15); color: #4A9EFF; }
+    .cat-proj { background: rgba(224,82,82,0.15); color: #E05252; }
+    .cat-conc { background: rgba(255,165,0,0.15); color: #FFA500; }
+    .cat-lang { background: rgba(167,139,250,0.15); color: #A78BFA; }
+    .flag-title { font-size: 14px; font-weight: 600; }
+    .sev-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 4px; }
+    .sev-high { background: var(--crimson-dim); color: var(--crimson); }
+    .sev-med { background: rgba(255,165,0,0.12); color: #FFA500; }
+    .flag-body { padding: 20px 24px; }
+    .flag-quote {
+      font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+      border-left: 3px solid var(--gold); padding: 10px 16px;
+      background: rgba(201,168,76,0.05); border-radius: 0 6px 6px 0;
+      margin-bottom: 16px; line-height: 1.6;
+    }
+    .flag-analysis { font-size: 13px; color: #B0BAC9; line-height: 1.7; }
+
+    /* ─── FEATURES GRID ─── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; border: 1px solid var(--border);
+    }
+    .feature-card { background: var(--card); padding: 32px; transition: background 0.2s; }
+    .feature-card:hover { background: var(--obsidian-layer); }
+    .feature-id { font-family: var(--font-mono); font-size: 10px; color: var(--gold); font-weight: 700; letter-spacing: 0.12em; margin-bottom: 16px; }
+    .feature-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+    .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+    /* ─── FOUNDER ─── */
+    .founder-section { background: var(--card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .founder-inner { max-width: 1100px; margin: 0 auto; padding: 80px 40px; display: grid; grid-template-columns: auto 1fr; gap: 56px; align-items: start; }
+    .avatar { width: 100px; height: 100px; border-radius: 12px; background: linear-gradient(135deg, var(--gold), #8B6914); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 32px; font-weight: 900; color: #080A0E; flex-shrink: 0; border: 2px solid var(--gold-dim); }
+    .founder-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; }
+    .founder-role { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; }
+    .founder-bio { font-size: 15px; color: var(--muted); line-height: 1.8; max-width: 600px; margin-bottom: 16px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .tag { padding: 6px 12px; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; }
+
+    /* ─── TECH STACK ─── */
+    .stack-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .stack-card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .stack-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--gold); text-transform: uppercase; }
+    .stack-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+    .stack-row:hover { background: rgba(255,255,255,0.02); }
+    .stack-row:last-child { border-bottom: none; }
+    .stack-label { font-size: 14px; color: var(--muted); }
+    .stack-tool { font-size: 14px; font-weight: 500; }
+    .stack-cost { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: #3DD68C; background: var(--mint-dim); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.1em; }
+    .stack-total { font-size: 14px; font-weight: 700; }
+    .stack-total-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--gold); }
+    .setup-row { display: flex; align-items: flex-start; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+    .setup-row:hover { background: rgba(255,255,255,0.02); }
+    .setup-num { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; letter-spacing: 0.1em; margin-top: 2px; flex-shrink: 0; }
+    .setup-label { font-family: var(--font-mono); font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .stack-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
+    .github-link { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--gold); text-decoration: none; transition: color 0.2s; }
+    .github-link:hover { color: var(--gold-bright); }
+
+    /* ─── WAITLIST ─── */
+    .waitlist-section { background: linear-gradient(to bottom, #080A0E, #0A0F17); }
+    .waitlist-inner { max-width: 640px; margin: 0 auto; padding: 96px 24px; text-align: center; }
+    .waitlist-card {
+      margin-top: 48px; background: var(--card); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px; padding: 48px; position: relative; overflow: hidden;
+    }
+    .waitlist-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(to right, transparent, var(--gold), transparent);
+    }
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .wl-input {
+      width: 100%; padding: 14px 16px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px; color: var(--fg); font-size: 14px; font-family: var(--font-sans);
+      outline: none; transition: border-color 0.2s;
+    }
+    .wl-input:focus { border-color: var(--gold); }
+    .wl-input::placeholder { color: #4A5568; }
+    .wl-btn {
+      width: 100%; padding: 16px;
+      background: var(--gold); color: #080A0E;
+      font-family: var(--font-sans); font-weight: 800; font-size: 15px; letter-spacing: 0.05em;
+      border: none; border-radius: 8px; cursor: pointer; margin-top: 4px;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .wl-btn:hover:not(:disabled) { background: var(--gold-bright); transform: translateY(-2px); }
+    .wl-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .wl-note { font-size: 12px; color: #4A5568; margin-top: 8px; }
+    .wl-error { font-size: 14px; font-weight: 500; color: var(--crimson); margin-bottom: 8px; }
+    .wl-success { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px 0; }
+    .success-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--mint-dim); border: 2px solid #3DD68C; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .success-title { font-size: 20px; font-weight: 800; }
+    .success-desc { font-size: 14px; color: var(--muted); }
+
+    /* ─── FOOTER ─── */
+    footer {
+      border-top: 1px solid var(--border); padding: 40px;
+    }
+    .footer-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .footer-brand { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--gold); }
+    .footer-copy { font-size: 12px; color: #4A5568; text-align: center; line-height: 1.6; }
+    .footer-gh { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-gh:hover { color: var(--fg); }
+
+    /* ─── NOISE ─── */
+    .noise {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      .status-bar { display: none; }
+      .section-inner { padding: 72px 24px; }
+      .pipeline-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .stack-grid { grid-template-columns: 1fr; }
+      .form-grid-2 { grid-template-columns: 1fr; }
+      .founder-inner { grid-template-columns: 1fr; gap: 24px; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+      .footer-inner { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="noise"></div>
+
+<!-- NAV -->
+<nav id="navbar">
+  <a href__="#" class="nav-brand">CIM-SIGHT AI</a>
+  <ul class="nav-links">
+    <li><a href__="#pipeline">Pipeline</a></li>
+    <li><a href__="#output">Output</a></li>
+    <li><a href__="#features">Features</a></li>
+    <li><a href__="#founder">Founder</a></li>
+    <li><a href__="#waitlist" class="nav-cta">JOIN WAITLIST →</a></li>
+  </ul>
+</nav>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-item"><span class="label">MODEL</span><span class="val">LLAMA-3.3-70B</span></div>
+  <span class="status-sep">·</span>
+  <div class="status-item"><span class="label">ENGINE</span><span class="val">CYNICAL MD v1.0</span></div>
+  <span class="status-sep">·</span>
+  <div class="status-item"><span class="label">LATENCY</span><span class="val">&lt;60s</span></div>
+  <span class="status-sep">·</span>
+  <div class="status-item"><span class="label">STATUS</span><span class="val"><span class="live-dot"></span>LIVE</span></div>
+  <span class="status-sep">·</span>
+  <div class="status-item"><span class="label">COST</span><span class="val">$0.00 / RUN</span></div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-bg-img">
+    <img src="https://media.base44.com/images/public/6a340132ece96b9784a49a24/175e2a707_generated_df5b12a8.png" alt="" />
+  </div>
+
+  <div style="position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;">
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      Institutional Deal Intelligence · Beta Live
+    </div>
+
+    <h1>The AI That Reads CIMs<br><span class="gold">Like a Cynical MD.</span></h1>
+
+    <p class="hero-sub">
+      Upload any Confidential Information Memorandum. CIM-Sight AI cross-references every
+      financial claim, hunts for math errors, and surfaces hidden risks — the way a 20-year
+      Managing Director actually would.
+    </p>
+
+    <div class="cta-row">
+      <a href__="https://github.com/ichita8/Cim-Sight-AI" target="_blank" rel="noopener noreferrer" class="btn-primary">
+        LAUNCH CIM-SIGHT AI →
+      </a>
+      <a href__="#pipeline" class="btn-secondary">
+        SEE THE PIPELINE ↓
+      </a>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-cell"><div class="stat-num">6</div><div class="stat-label">Red Flag Categories</div></div>
+      <div class="stat-cell"><div class="stat-num">&lt;60s</div><div class="stat-label">Analysis Latency</div></div>
+      <div class="stat-cell"><div class="stat-num">70B</div><div class="stat-label">Model Parameters</div></div>
+      <div class="stat-cell"><div class="stat-num">$0</div><div class="stat-label">Operating Cost</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PIPELINE -->
+<section id="pipeline">
+  <div class="section-inner">
+    <div class="section-tag">01 / The Pipeline</div>
+    <h2>From PDF to<br>Actionable Intelligence.</h2>
+    <p class="section-desc">Four deterministic steps. No hallucination. No interpretation. Every output anchored to a verbatim document quote.</p>
+
+    <div class="pipeline-grid">
+      <div class="pipeline-card">
+        <div class="card-tag">01 / 04</div>
+        <div class="card-icon">📄</div>
+        <div class="card-title">Ingest Document</div>
+        <p class="card-desc">PyMuPDF4LLM converts complex multi-column CIM PDFs into clean structured Markdown — preserving tables, financials, and footnotes with precision.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="card-tag">02 / 04</div>
+        <div class="card-icon">🧠</div>
+        <div class="card-title">Activate MD Engine</div>
+        <p class="card-desc">A 70B parameter LLM, adversarially prompted with a senior MD's pattern recognition, ingests the full document context in a single pass.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="card-tag">03 / 04</div>
+        <div class="card-icon">🔍</div>
+        <div class="card-title">Cross-Reference Flags</div>
+        <p class="card-desc">The engine audits against 6 red flag categories simultaneously — hunting for inconsistencies, contradictions, and evasive management language.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="card-tag">04 / 04</div>
+        <div class="card-icon">📊</div>
+        <div class="card-title">Structured Output</div>
+        <p class="card-desc">Each flag surfaces with a verbatim quote, severity tier (HIGH / MEDIUM / LOW), and an institutional-grade explanation. Plus an overall deal risk rating.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- RED FLAGS / OUTPUT -->
+<section id="output" style="position:relative;">
+  <div style="position:absolute;inset:0;opacity:0.04;pointer-events:none;">
+    <img src="https://media.base44.com/images/public/6a340132ece96b9784a49a24/f1bc5070e_generated_ac839be4.png" alt="" style="width:100%;height:100%;object-fit:cover;" />
+  </div>
+  <div class="section-inner">
+    <div class="section-tag">02 / Sample Output</div>
+    <h2>What the Engine<br>Actually Surfaces.</h2>
+    <p class="section-desc">Representative red flags from a live CIM analysis. Every output follows the same structured format — auditable, quotable, actionable.</p>
+
+    <div class="flags-list">
+      <div class="flag-card">
+        <div class="flag-header">
+          <div class="flag-header-left">
+            <span class="cat-badge cat-math">Math Error</span>
+            <span class="flag-title">EBITDA Margin Contradiction Across Sections</span>
+          </div>
+          <span class="sev-badge sev-high">HIGH</span>
+        </div>
+        <div class="flag-body">
+          <div class="flag-quote">"EBITDA of $42.3M on revenues of $187.5M represents a 22.6% margin, consistent with prior year performance of 22.8%."</div>
+          <p class="flag-analysis">$42.3M / $187.5M = 22.56%, but Page 34 shows FY2022 EBITDA of $39.1M on $171.2M revenue — that's 22.84%, not 22.8%. The rounding obscures a 24bps discrepancy. Minor on its own; a pattern across multiple pages indicates either sloppy modelling or intentional smoothing.</p>
+        </div>
+      </div>
+
+      <div class="flag-card">
+        <div class="flag-header">
+          <div class="flag-header-left">
+            <span class="cat-badge cat-proj">Aggressive Projections</span>
+            <span class="flag-title">18–22% CAGR With Zero Substantiation</span>
+          </div>
+          <span class="sev-badge sev-high">HIGH</span>
+        </div>
+        <div class="flag-body">
+          <div class="flag-quote">"Management projects revenue growth of 18–22% CAGR over the next five years, driven by geographic expansion and new product lines."</div>
+          <p class="flag-analysis">LTM growth was 9.4%. The prior year was 7.1%. A 2x acceleration requires signed LOIs, named markets, and pipeline disclosure — none of which appear in this document. "Geographic expansion" and "new product lines" are not a plan. This is a seller's fantasy dressed in CAGR notation.</p>
+        </div>
+      </div>
+
+      <div class="flag-card">
+        <div class="flag-header">
+          <div class="flag-header-left">
+            <span class="cat-badge cat-conc">Customer Concentration</span>
+            <span class="flag-title">Top 3 Clients = 61% of Total Revenue</span>
+          </div>
+          <span class="sev-badge sev-med">MEDIUM</span>
+        </div>
+        <div class="flag-body">
+          <div class="flag-quote">"The Company benefits from long-standing relationships with its top clients, with its three largest customers representing approximately 61% of total revenue."</div>
+          <p class="flag-analysis">61% concentration in three clients is one contract cancellation away from a covenant breach. The word "approximately" is doing a lot of work here. We need exact figures and contract expiry dates — if any are up for renewal within 18 months of close, this deal reprices materially.</p>
+        </div>
+      </div>
+
+      <div class="flag-card">
+        <div class="flag-header">
+          <div class="flag-header-left">
+            <span class="cat-badge cat-lang">Management Language</span>
+            <span class="flag-title">Recurring "One-Time" Cost Classification</span>
+          </div>
+          <span class="sev-badge sev-med">MEDIUM</span>
+        </div>
+        <div class="flag-body">
+          <div class="flag-quote">"Margins are expected to normalize over the projection period as one-time integration costs from recent acquisitions are absorbed by the business."</div>
+          <p class="flag-analysis">"Normalize" and "one-time costs" appearing together is a textbook tell. Every year these are one-time. If integration costs recur across multiple acquisitions, they're structural — not exceptional. Request a 5-year history of items management has classified as non-recurring. The answer will be illuminating.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-tag">03 / Capabilities</div>
+    <h2>Built for the Way<br>IB Teams Actually Work.</h2>
+    <p class="section-desc">Not a summarizer. Not a chatbot wrapper. A purpose-built audit engine designed around institutional due diligence workflows.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-id">F-01</div>
+        <div class="feature-title">Adversarial Prompting</div>
+        <p class="feature-desc">The MD Engine is designed to challenge — not accept — every financial claim. It looks for what doesn't add up, not just what's there.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-id">F-02</div>
+        <div class="feature-title">Verbatim Quote Attribution</div>
+        <p class="feature-desc">Every flag is anchored to an exact quote from the source document. No hallucinations. Every finding is citable in a deal memo.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-id">F-03</div>
+        <div class="feature-title">Severity Tiering</div>
+        <p class="feature-desc">HIGH / MEDIUM / LOW severity ratings help deal teams triage what needs immediate attention versus monitoring through diligence.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-id">F-04</div>
+        <div class="feature-title">Zero Regulatory Overhead</div>
+        <p class="feature-desc">Built as an internal analyst productivity tool — not financial advice, not consumer-facing. No licensing requirements. Clean for enterprise deployment.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-id">F-05</div>
+        <div class="feature-title">Machine-Speed First Pass</div>
+        <p class="feature-desc">What takes a junior analyst 3–4 hours to flag manually, CIM-Sight AI completes in under 60 seconds — freeing analysts for higher-order work.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-id">F-06</div>
+        <div class="feature-title">Overall Risk Rating</div>
+        <p class="feature-desc">A final deal risk assessment — LOW / MEDIUM / HIGH / CRITICAL — with a summary paragraph structured for IC presentation use.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FOUNDER -->
+<section id="founder" class="founder-section">
+  <div class="founder-inner">
+    <div class="avatar">IK</div>
+    <div>
+      <div class="founder-name">Ichita Kawabata</div>
+      <div class="founder-role">Founder · Georgia College Early College</div>
+      <p class="founder-bio">Aspiring investment banker and private equity professional with a deep interest in the intersection of AI and financial due diligence. Built CIM-Sight AI to solve a real problem: the hours junior analysts spend manually reading CIMs before they get to the interesting work.</p>
+      <p class="founder-bio">CIM-Sight AI was designed from the ground up with institutional workflows in mind — not a generic AI wrapper, but a purpose-built audit engine that understands what a Managing Director actually looks for in a deal document.</p>
+      <div class="tags">
+        <span class="tag">Investment Banking</span>
+        <span class="tag">Private Equity</span>
+        <span class="tag">LLM / AI</span>
+        <span class="tag">Due Diligence</span>
+        <span class="tag">Prompt Engineering</span>
+        <span class="tag">PDF Extraction</span>
+        <span class="tag">Financial Analysis</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section id="open-source" style="position:relative;">
+  <div style="position:absolute;inset:0;opacity:0.04;pointer-events:none;">
+    <img src="https://media.base44.com/images/public/6a340132ece96b9784a49a24/dc9bf57f1_generated_cd5942ae.png" alt="" style="width:100%;height:100%;object-fit:cover;" />
+  </div>
+  <div class="section-inner">
+    <div class="section-tag">05 / Open Source</div>
+    <h2>Fully Open.<br>Zero Cost to Run.</h2>
+    <p class="section-desc">Every line of code is public. Fork it, audit it, deploy it. The entire stack runs on free-tier infrastructure — no API keys with hidden invoices.</p>
+
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-header">⌨ Tech Stack</div>
+        <div class="stack-row"><span class="stack-label">PDF Extraction</span><div style="display:flex;align-items:center;gap:16px;"><span class="stack-tool">PyMuPDF4LLM</span><span class="stack-cost">FREE</span></div></div>
+        <div class="stack-row"><span class="stack-label">AI Model</span><div style="display:flex;align-items:center;gap:16px;"><span class="stack-tool">Llama 3.3 70B via Groq</span><span class="stack-cost">FREE</span></div></div>
+        <div class="stack-row"><span class="stack-label">Dashboard</span><div style="display:flex;align-items:center;gap:16px;"><span class="stack-tool">Streamlit</span><span class="stack-cost">FREE</span></div></div>
+        <div class="stack-row"><span class="stack-label">Landing Page</span><div style="display:flex;align-items:center;gap:16px;"><span class="stack-tool">React + Tailwind</span><span class="stack-cost">FREE</span></div></div>
+        <div class="stack-row"><span class="stack-total">Total Operating Cost</span><span class="stack-total-val">$0/run</span></div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-header">▶ Quick Start</div>
+        <div class="setup-row"><span class="setup-num">01</span><span class="setup-label">Get a free Groq API key at console.groq.com</span></div>
+        <div class="setup-row"><span class="setup-num">02</span><span class="setup-label">pip install -r requirements.txt</span></div>
+        <div class="setup-row"><span class="setup-num">03</span><span class="setup-label">streamlit run app.py</span></div>
+        <div class="setup-row"><span class="setup-num">04</span><span class="setup-label">Upload a CIM PDF and click Analyze</span></div>
+        <div class="stack-footer">
+          <a href__="https://github.com/ichita8/Cim-Sight-AI" target="_blank" rel="noopener noreferrer" class="github-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            View Repository →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WAITLIST -->
+<section id="waitlist" class="waitlist-section">
+  <div class="waitlist-inner">
+    <div class="section-tag" style="text-align:center;">04 / Early Access</div>
+    <h2 style="text-align:center;">Ready to Screen.<br>Join the Waitlist.</h2>
+    <p class="section-desc" style="text-align:center;max-width:460px;margin:0 auto 0;">Get early access when we open institutional seats. Free. No credit card. No setup.</p>
+
+    <div class="waitlist-card">
+      <div id="wl-form">
+        <div class="form-grid-2">
+          <input class="wl-input" type="text" id="wl-name" placeholder="Full Name" />
+          <input class="wl-input" type="email" id="wl-email" placeholder="Work Email *" />
+        </div>
+        <div class="form-grid-2">
+          <input class="wl-input" type="text" id="wl-role" placeholder="Role (e.g. Analyst, Associate)" />
+          <input class="wl-input" type="text" id="wl-firm" placeholder="Firm / Institution" />
+        </div>
+        <div id="wl-error" class="wl-error" style="display:none;"></div>
+        <button class="wl-btn" id="wl-btn" onclick="submitWaitlist()">REQUEST EARLY ACCESS →</button>
+        <p class="wl-note">For institutional analyst use only. Not financial advice.</p>
+      </div>
+      <div id="wl-success" class="wl-success" style="display:none;">
+        <div class="success-icon">✓</div>
+        <div class="success-title">You're on the list.</div>
+        <p class="success-desc">We'll reach out when institutional access opens. Watch your inbox.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">CIM-SIGHT AI</div>
+    <div class="footer-copy">Built by Ichita Kawabata · Georgia College Early College<br>© 2026 · For Institutional Analyst Use Only</div>
+    <a href__="https://github.com/ichita8/Cim-Sight-AI" target="_blank" rel="noopener noreferrer" class="footer-gh">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+</footer>
+
+<script>
+  // Navbar scroll effect
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 20);
+  });
+
+  // Waitlist form (uses a simple mailto fallback — replace with your backend/Formspree endpoint)
+  function submitWaitlist() {
+    const name = document.getElementById('wl-name').value;
+    const email = document.getElementById('wl-email').value;
+    const role = document.getElementById('wl-role').value;
+    const firm = document.getElementById('wl-firm').value;
+    const errEl = document.getElementById('wl-error');
+    const btn = document.getElementById('wl-btn');
+
+    if (!email || !email.includes('@')) {
+      errEl.textContent = 'Please enter a valid work email.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'SUBMITTING...';
+
+    // ── Replace this fetch() with your real endpoint (Formspree, Supabase, etc.) ──
+    setTimeout(() => {
+      document.getElementById('wl-form').style.display = 'none';
+      document.getElementById('wl-success').style.display = 'flex';
+    }, 800);
+  }
+</script>
+
+</body>
+</html>
