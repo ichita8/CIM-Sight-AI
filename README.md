@@ -1,14 +1,14 @@
 # CIM-Sight AI
 
-**Institutional Deal Intelligence â€” AI-Powered CIM Screener**
+**Institutional Deal Intelligence  AI-Powered CIM Screener**
 
-Built by Ichita Kawabata Â· Georgia College Early College
+Built by Ichita Kawabata · Georgia College Early College
 
 ---
 
 ## What It Does
 
-CIM-Sight AI automatically audits Confidential Information Memorandums (CIMs), surfacing hidden risks, math errors, and financial red flags â€” the way a 20-year Managing Director actually would.
+CIM-Sight AI automatically audits Confidential Information Memorandums (CIMs), surfacing hidden risks, math errors, and financial red flags the way a 20-year Managing Director actually would.
 
 **6 Red Flag Categories:**
 - Math Errors
