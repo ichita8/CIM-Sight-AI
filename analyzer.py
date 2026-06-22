@@ -56,7 +56,7 @@ def analyze_cim(pdf_path: str, api_key: str) -> dict:
     raw_text = extract_text_from_pdf(pdf_path)
 
     # Truncate if too long (Groq has ~32k context on most models)
-    if len(raw_text) > 24000:
+    if len(raw_text) > 100000:
         raw_text = raw_text[:24000] + "\n\n[Document truncated for analysis â€” first 24,000 characters processed]"
 
     # Step 2: Run Groq analysis
@@ -74,7 +74,7 @@ def analyze_cim(pdf_path: str, api_key: str) -> dict:
                 "content": f"--- CIM DOCUMENT TEXT BELOW ---\n\n{raw_text}"
             }
         ],
-        max_tokens=4000,
+        max_tokens=8000,
         temperature=0.3
     )
 
