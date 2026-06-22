@@ -167,6 +167,9 @@ if "results" in st.session_state:
     c3.metric("High Severity", high_count)
     c4.metric("Chars Analyzed", f"{results.get('text_length', 0):,}")
 
+    if results.get('text length', 0) >= 100000:
+        st.warning("This document exceeded the 100,000 character analysis limit. The engine processed the first 100k characters. For complete coverage, consider splitting the PDF or deleting unnecessary parts.")
+
     # ── Deterministic engine findings (verified, no LLM) ──
     if rule_findings:
         items_html = "".join(
