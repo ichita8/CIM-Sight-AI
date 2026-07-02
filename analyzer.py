@@ -1,7 +1,7 @@
 import os
 import re
 import pymupdf4llm
-from groq import Groq
+from groq import Groq  # CHANGE TO GOOGLE GEMINI AI sometime
 
 CYNICAL_MD_PROMPT = """
 You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs). 
