@@ -76,7 +76,7 @@ def analyze_cim(pdf_path: str, api_key: str) -> dict:
             }
         ],
         max_tokens=8000,
-        temperature=0.3
+        temperature=0.0
     )
 
     analysis = response.choices[0].message.content
