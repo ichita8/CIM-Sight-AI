@@ -46,7 +46,7 @@ def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
     except Exception as e:
         raise Exception(f"Failed to extract PDF text: {str(e)}")
 
-def analyze_cim(pdf_path: str, api_key: str) -> dict:
+def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
     """Run the full CIM analysis pipeline"""
 
     # Step 1: Extract text
