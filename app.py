@@ -105,11 +105,11 @@ st.markdown('<div class="status-strip">MODEL: LLAMA-3.3-70B &nbsp;·&nbsp; ENGIN
 # ─────────────────────────────────────────────────────────────
 # API KEY
 # ─────────────────────────────────────────────────────────────
-api_key = None
+api_key = read from Streamlit Secrets (no user input needed)
 try:
-    api_key = st.secrets["GROQ_API_KEY"]
+    api_key = st.secrets["CEREBRAS_API_KEY"]
 except Exception:
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = os.environ.get("CEREBRAS_API_KEY")
 
 if not api_key:
     api_key = st.text_input(
@@ -133,7 +133,7 @@ with col_a:
 # ─────────────────────────────────────────────────────────────
 if analyze_clicked:
     if not api_key:
-        st.error("Please provide a Groq API key.")
+        st.error("Cerebras API key not found. Add CEREBRAS_API_KEY to Streamlit Secrets.")
     elif not uploaded_file:
         st.error("Please upload a CIM PDF first.")
     else:
@@ -142,7 +142,7 @@ if analyze_clicked:
                 tmp.write(uploaded_file.getvalue())
                 tmp_path = tmp.name
             try:
-                results = analyze_cim(tmp_path, api_key)
+                results = analyze_cim(tmp_path)
                 st.session_state["results"] = results
             except Exception as e:
                 st.error(f"Analysis failed: {str(e)}")
@@ -167,7 +167,7 @@ if "results" in st.session_state:
     c3.metric("High Severity", high_count)
     c4.metric("Chars Analyzed", f"{results.get('text_length', 0):,}")
 
-    if results.get('text length', 0) >= 100000:
+    if results.get('text_length', 0) >= 100000:
         st.warning("This document exceeded the 100,000 character analysis limit. The engine processed the first 100k characters. For complete coverage, consider splitting the PDF or deleting unnecessary parts.")
 
     # ── Deterministic engine findings (verified, no LLM) ──
