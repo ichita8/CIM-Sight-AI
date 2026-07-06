@@ -103,9 +103,9 @@ st.markdown('<div class="hero-desc">Upload a Confidential Information Memorandum
 st.markdown('<div class="status-strip">MODEL: LLAMA-3.3-70B &nbsp;·&nbsp; ENGINE: CYNICAL MD v1.0 + ARITHMETIC CHECKER &nbsp;·&nbsp; STATUS: <span class="live">● LIVE</span></div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# API KEY
+# API KEY - read from Streamlit Secrets (no user input needed)
 # ─────────────────────────────────────────────────────────────
-api_key = read from Streamlit Secrets (no user input needed)
+api_key = None
 try:
     api_key = st.secrets["CEREBRAS_API_KEY"]
 except Exception:
