@@ -1,7 +1,5 @@
 import os
-import re
 import pymupdf4llm
-from openai import OpenAI
 
 CYNICAL_MD_PROMPT = """
 You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs). 
@@ -20,7 +18,7 @@ Analyze the provided CIM text and identify red flags across these 6 categories:
 
 For EACH red flag you find, output it in EXACTLY this format:
 
-RED FLAG #[number] [CATEGORY NAME]
+RED FLAG #[number] | [CATEGORY NAME]
 Severity: [HIGH / MEDIUM / LOW]
 Quote: "[exact quoted text from the document]"
 Why It's Suspicious: [Your MD-level explanation of the specific concern; be direct, specific, and brutal]
@@ -34,7 +32,7 @@ Rules:
 - After all red flags, add a section called "OVERALL RISK ASSESSMENT" with a paragraph summary and an overall deal risk rating: LOW / MEDIUM / HIGH / CRITICAL
 """
 
-def extract_text_from_pdf(pdf_path: str, max_pages: int = 50) -> str:
+def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
     """Extract markdown text from PDF using PyMuPDF4LLM"""
     try:
         import fitz
@@ -56,12 +54,13 @@ def analyze_cim(pdf_path: str, api_key: str) -> dict:
 
     # Truncate if too long (Groq has ~32k context on most models)
     if len(raw_text) > 100000:
-        raw_text = raw_text[:24000] + "\n\n[Document truncated for analysis â€” first 24,000 characters processed]"
+        raw_text = raw_text[:100000] + "\n\n[Document truncated for analysis - first 100,000 characters processed]"
 
     # Step 2: Run Groq analysis
+    from openai import OpenAI
     client = OpenAI(
         base_url="https://api.cerebras.ai/v1",
-        api_key=os.environ.get("csk-33yt3tv6vw5vy3e4f4p25rd8wn4e36dmtrv5wchhtdh2ymn6")
+        api_key=os.environ.get("CEREBRAS_API_KEY")
     )
 
     response = client.chat.completions.create(
@@ -96,7 +95,7 @@ def parse_red_flags(analysis_text: str) -> list:
     """Parse the AI output into structured red flag objects"""
     red_flags = []
 
-    sections = analysis_text.split("ðŸš¨ RED FLAG #")
+    sections = analysis_text.split("RED FLAG")
 
     for section in sections[1:]:
         flag = {}
@@ -104,8 +103,8 @@ def parse_red_flags(analysis_text: str) -> list:
 
         if lines:
             header = lines[0]
-            if "â€”" in header:
-                parts = header.split("â€”", 1)
+            if "|" in header:
+                parts = header.split("|", 1)
                 flag["number"] = parts[0].strip()
                 flag["category"] = parts[1].strip() if len(parts) > 1 else "UNKNOWN"
             else:
