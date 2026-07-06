@@ -64,7 +64,7 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
     )
 
     response = client.chat.completions.create(
-        model="llama3.3-70b",
+        model="gpt-oss-120b",
         messages=[
             {
                 "role": "system",
