@@ -1,29 +1,29 @@
 import os
 import re
 import pymupdf4llm
-from groq import Groq  # CHANGE TO GOOGLE GEMINI AI sometime
+from openai import OpenAI
 
 CYNICAL_MD_PROMPT = """
 You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs). 
 You have seen dozens of deals collapse due to hidden risks, inflated projections, and misleading financials buried in these documents.
 
-Your job is NOT to summarize this CIM. Your job is to be a cynical, aggressive auditor â€” hunting for anything that smells off.
+Your job is NOT to summarize this CIM. Your job is to be a cynical, aggressive auditor hunting for anything that smells off.
 
 Analyze the provided CIM text and identify red flags across these 6 categories:
 
-1. MATH ERRORS â€” Revenue, EBITDA, margin, or growth figures that don't add up or contradict each other across sections
-2. AGGRESSIVE PROJECTIONS â€” Hockey-stick growth, unrealistic CAGR assumptions, or projections with no credible justification
-3. CUSTOMER CONCENTRATION RISK â€” Over-reliance on a single client, customer, or revenue stream
-4. DEBT & LIABILITY RED FLAGS â€” Buried obligations, off-balance-sheet items, unusual debt structures, or covenant risks
-5. MANAGEMENT LANGUAGE TELLS â€” Vague, evasive, overly promotional, or suspiciously hedged language around key metrics
-6. MARGIN INCONSISTENCIES â€” Gross/EBITDA/net margins that shift suspiciously between periods without clear explanation
+1. MATH ERRORS - Revenue, EBITDA, margin, or growth figures that don't add up or contradict each other across sections
+2. AGGRESSIVE PROJECTIONS - Hockey-stick growth, unrealistic CAGR assumptions, or projections with no credible justification
+3. CUSTOMER CONCENTRATION RISK - Over-reliance on a single client, customer, or revenue stream
+4. DEBT & LIABILITY RED FLAGS - Buried obligations, off-balance-sheet items, unusual debt structures, or covenant risks
+5. MANAGEMENT LANGUAGE TELLS - Vague, evasive, overly promotional, or suspiciously hedged language around key metrics
+6. MARGIN INCONSISTENCIES - Gross/EBITDA/net margins that shift suspiciously between periods without clear explanation
 
 For EACH red flag you find, output it in EXACTLY this format:
 
-ðŸš¨ RED FLAG #[number] â€” [CATEGORY NAME]
+RED FLAG #[number] [CATEGORY NAME]
 Severity: [HIGH / MEDIUM / LOW]
 Quote: "[exact quoted text from the document]"
-Why It's Suspicious: [Your MD-level explanation of the specific concern â€” be direct, specific, and brutal]
+Why It's Suspicious: [Your MD-level explanation of the specific concern; be direct, specific, and brutal]
 
 ---
 
@@ -31,7 +31,6 @@ Rules:
 - Only flag things that are genuinely suspicious. Don't manufacture issues.
 - Be specific. Reference exact numbers, percentages, and page context when possible.
 - Think like someone who has watched deals blow up. What would make you walk away from this deal?
-- Minimum 5 red flags, maximum 15.
 - After all red flags, add a section called "OVERALL RISK ASSESSMENT" with a paragraph summary and an overall deal risk rating: LOW / MEDIUM / HIGH / CRITICAL
 """
 
@@ -60,10 +59,13 @@ def analyze_cim(pdf_path: str, api_key: str) -> dict:
         raw_text = raw_text[:24000] + "\n\n[Document truncated for analysis â€” first 24,000 characters processed]"
 
     # Step 2: Run Groq analysis
-    client = Groq(api_key=api_key)
+    client = OpenAI(
+        base_url="https://api.cerebras.ai/v1",
+        api_key=os.environ.get("csk-33yt3tv6vw5vy3e4f4p25rd8wn4e36dmtrv5wchhtdh2ymn6")
+    )
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.3-70b",
         messages=[
             {
                 "role": "system",
