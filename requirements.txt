@@ -1,4 +1,4 @@
 streamlit
 pymupdf4llm
-groq
+openai
 PyMuPDF
