@@ -100,7 +100,7 @@ st.markdown("""
 st.markdown('<div class="hero-sub">Institutional Deal Intelligence · Beta</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-title">CIM-Sight AI — <span class="gold">The Cynical MD Engine</span></div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-desc">Upload a Confidential Information Memorandum. A deterministic arithmetic engine verifies every margin and growth claim, then a 70B-parameter LLM hunts for hidden risks, aggressive projections, and management-language tells — the way a 20-year Managing Director would.</div>', unsafe_allow_html=True)
-st.markdown('<div class="status-strip">MODEL: LLAMA-3.3-70B &nbsp;·&nbsp; ENGINE: CYNICAL MD v1.0 + ARITHMETIC CHECKER &nbsp;·&nbsp; STATUS: <span class="live">● LIVE</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="status-strip">MODEL: GPT-OSS-120B &nbsp;·&nbsp; ENGINE: CYNICAL MD v1.0 + ARITHMETIC CHECKER &nbsp;·&nbsp; STATUS: <span class="live">● LIVE</span></div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
 # API KEY - read from Streamlit Secrets (no user input needed)
