@@ -3,17 +3,7 @@ import tempfile
 import os
 import re
 import html as html_module
-from analyzer import analyze_cim, get_severity_color, get_overall_risk
-
-def md_to_html(text):
-    """Convert simple markdown to safe HTML for rendering inside divs"""
-    if not text:
-        return ""
-    text = html_module.escape(text)
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-    text = text.replace('\n', '<br>')
-    return text
+from analyzer import analyze_cim, get_severity_color, get_overall_risk, md_to_html
 
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
