@@ -16,7 +16,7 @@ Analyze the provided CIM text and identify red flags across these 6 categories:
 5. MANAGEMENT LANGUAGE TELLS - Vague, evasive, overly promotional, or suspiciously hedged language around key metrics
 6. MARGIN INCONSISTENCIES - Gross/EBITDA/net margins that shift suspiciously between periods without clear explanation
 
-For EACH red flag you find, output it in EXACTLY this format:
+For EACH red flag you find, output it in EXACTLY this format - no markdown, no asterisks, no bold, no emojis:
 
 RED FLAG #[number] | [CATEGORY NAME]
 Severity: [HIGH / MEDIUM / LOW]
@@ -24,6 +24,12 @@ Quote: "[exact quoted text from the document]"
 Why It's Suspicious: [Your MD-level explanation of the specific concern; be direct, specific, and brutal]
 
 ---
+
+Critical Format Rules:
+- The delimiter line must start with "RED FLAG" and use a pipe | to separate number and category
+- Do NOT use ** or ## or any markdown formatting anywhere in the delimiter, category, or severity lines.
+- Use the exact category names listed above (e.g. "MATH ERRORS", not "Math Error").
+- The Quote and Why It's Suspicious fields may use **bold** markdown for emphasis.
 
 Rules:
 - Only flag things that are genuinely suspicious. Don't manufacture issues.
@@ -93,37 +99,92 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
 
 def parse_red_flags(analysis_text: str) -> list:
     """Parse the AI output into structured red flag objects"""
+    import re
+
     red_flags = []
 
-    sections = analysis_text.split("RED FLAG")
+    KNOWN_CATEGORIES = [
+        "MATH ERRORS",
+        "AGGRESSIVE PROJECTIONS",
+        "CUSTOMER CONCENTRATION RISKS",
+        "DEBT & LIABILITY RISK",
+        "MANAGEMENT LANGUAGE TELLS",
+        "MARGIN INCONSISTENCIES",
+    ]
 
-    for section in sections[1:]:
+    def clean_md(text):
+        """Match text against known categories, return best match or cleaned text"""
+        text_clean = clean_md(text)
+        text_upper = text_clean.upper()
+        for known in KNOWN_CATEGORIES:
+            if known in text_upper or text_upper in known:
+                return known
+        # Partial keyword matching
+        for known in KNOWN_CATEGORIES:
+            keywords = known.split()
+            if all(kw in text_upper for kw in keywords [:2]):
+                return known
+        return text_clean if text_clean else "UNKNOWN"
+
+    Split on "RED FLAG" delimiter
+    ctions = re.split(r'(?i)RED\s*FLAG', analysis_text)
+
+    r section in sections[1:]:
         flag = {}
         lines = section.strip().split("\n")
+        if not lines or not lines[0].strip():
+            continue
 
-        if lines:
-            header = lines[0]
-            if "|" in header:
-                parts = header.split("|", 1)
+        # Scan first 4 lines to find category
+        category_found = False
+        for i, line in enumerate(lines[:4]):
+            lines_clean = clean_md(line)
+            if not line_clean:
+                continue
+            # Check for pipe delimiter
+            if "|" in line_clean:
+                parts = line_clean.split("|", 1)
                 flag["number"] = parts[0].strip()
-                flag["category"] = parts[1].strip() if len(parts) > 1 else "UNKNOWN"
-            else:
-                flag["number"] = header.strip()
-                flag["category"] = "UNKNOWN"
+                flag["category"] = match_category(parts[1]) if len(parts)
+                category_found = True
+                break                             
+            # Check if line matches a known category
+            matched = match_category(line_clean)
+            if matched != "UNKNOWN" and matched != line_clean:
+                flag["category"] = matched
+                flag["number"] = ""
+                category_found = True
+                break
+            # Check if line starts with # (number only, no category)
+            if line_clean.startswith("#") or line_clean[0].isdigit():
+                flag["number"] = line_clean.lstrip("#").strip()
+                continue
 
-        full_text = "\n".join(lines[1:])
+        if not category_found:
+            flag["category"] = "UNKNOWN"
+            flag.setdefault("number", "")
 
-        # Severity
+        full_text = "\n".join(lines)
+
+        # Severity - scan all lines
         sev_line = [l for l in lines if "Severity:" in l]
-        flag["severity"] = sev_line[0].replace("Severity:", "").strip() if sev_line else "MEDIUM"
+        if sev_line:
+            flag["severity"] = clean_md(re.sub(r'(?i)severity:?', '', sev_line[0]))
+        else
+            flag["severity"] = "MEDIUM"
 
         # Quote
-        if 'Quote:' in full_text:
-            quote_start = full_text.find('Quote:') + 6
+        if 'Quote:' in full_text or 'Quote :' in full_text:
+            quote_start = full_text.find('Quote:')
+            if quote_start == -1:
+                quote_start = full_text.find('Quote :')
+                quote_start += 7
+            else
+                quote_start+= 6
             quote_end = full_text.find("Why It's Suspicious:")
             if quote_end == -1:
                 quote_end = quote_start + 500
-            flag["quote"] = full_text[quote_start:quote_end].strip().strip('"')
+            flag["quote"] = full_text[quote_start:quote_end].strip().strip('"').strip("'")
         else:
             flag["quote"] = ""
 
@@ -131,7 +192,7 @@ def parse_red_flags(analysis_text: str) -> list:
         if "Why It's Suspicious:" in full_text:
             exp_start = full_text.find("Why It's Suspicious:") + 20
             exp_end = full_text.find("---")
-            if exp_end == -1:
+            if exp_end == -1 or exp_end < exp_start:
                 exp_end = len(full_text)
             flag["explanation"] = full_text[exp_start:exp_end].strip()
         else:
