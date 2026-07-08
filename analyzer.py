@@ -128,9 +128,9 @@ def parse_red_flags(analysis_text: str) -> list:
         return text_clean if text_clean else "UNKNOWN"
 
     Split on "RED FLAG" delimiter
-    ctions = re.split(r'(?i)RED\s*FLAG', analysis_text)
+    sections = re.split(r'(?i)RED\s*FLAG', analysis_text)
 
-    r section in sections[1:]:
+    for section in sections[1:]:
         flag = {}
         lines = section.strip().split("\n")
         if not lines or not lines[0].strip():
