@@ -1,4 +1,5 @@
 import os
+import re
 import pymupdf4llm
 
 CYNICAL_MD_PROMPT = """
