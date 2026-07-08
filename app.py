@@ -5,6 +5,16 @@ import re
 import html as html_module
 from analyzer import analyze_cim, get_severity_color, get_overall_risk, md_to_html
 
+def md_to_html(text):
+    """Convert simple markdown to safe HTML for rendering inside divs"""
+    if not text:
+        return ""
+    text = html_module.escape(text)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+    text = text.replace('\n', '<br>')
+    return text
+
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────
@@ -198,6 +208,12 @@ if "results" in st.session_state:
     for flag in red_flags:
         sev = flag.get("severity", "MEDIUM").upper()
         sev_color = get_severity_color(sev)
+
+        # Extract the variables from the dictionary so Python can find them
+        category = flag.get("category", "Unknown")
+        quote = flag.get("quote", "")
+        explanation = flag.get("explanation", "")
+        
         st.markdown(f"""
         <div class="flag-card">
             <div class="flag-header">
