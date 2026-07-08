@@ -3,7 +3,7 @@ import tempfile
 import os
 import re
 import html as html_module
-from analyzer import analyze_cim, get_severity_color, get_overall_risk, md_to_html
+from analyzer import analyze_cim, get_severity_color, get_overall_risk
 
 def md_to_html(text):
     """Convert simple markdown to safe HTML for rendering inside divs"""
