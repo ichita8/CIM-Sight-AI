@@ -198,7 +198,7 @@ def parse_red_flags(analysis_text: str) -> list:
         else:
             flag["explanation"] = ""
 
-        if flag.get("category"):
+        if flag.get("category") and (flag.get("quote") or flag.get("explanation")):
             red_flags.append(flag)
 
     return red_flags
