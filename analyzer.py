@@ -1,5 +1,4 @@
 import os
-import re
 import pymupdf4llm
 
 CYNICAL_MD_PROMPT = """
@@ -107,13 +106,18 @@ def parse_red_flags(analysis_text: str) -> list:
     KNOWN_CATEGORIES = [
         "MATH ERRORS",
         "AGGRESSIVE PROJECTIONS",
-        "CUSTOMER CONCENTRATION RISKS",
-        "DEBT & LIABILITY RISK",
+        "CUSTOMER CONCENTRATION RISK",
+        "DEBT & LIABILITY RED FLAGS",
         "MANAGEMENT LANGUAGE TELLS",
         "MARGIN INCONSISTENCIES",
     ]
 
     def clean_md(text):
+        """Strip markdown formatting markers"""
+        text = text.replace("**", "").replace("##", "").replace("#", "")
+        return text.strip()
+
+    def match_category(text):
         """Match text against known categories, return best match or cleaned text"""
         text_clean = clean_md(text)
         text_upper = text_clean.upper()
@@ -123,11 +127,11 @@ def parse_red_flags(analysis_text: str) -> list:
         # Partial keyword matching
         for known in KNOWN_CATEGORIES:
             keywords = known.split()
-            if all(kw in text_upper for kw in keywords [:2]):
+            if all(kw in text_upper for kw in keywords[:2]):
                 return known
         return text_clean if text_clean else "UNKNOWN"
 
-    Split on "RED FLAG" delimiter
+    # Split on "RED FLAG" delimiter
     sections = re.split(r'(?i)RED\s*FLAG', analysis_text)
 
     for section in sections[1:]:
@@ -139,16 +143,16 @@ def parse_red_flags(analysis_text: str) -> list:
         # Scan first 4 lines to find category
         category_found = False
         for i, line in enumerate(lines[:4]):
-            lines_clean = clean_md(line)
+            line_clean = clean_md(line)
             if not line_clean:
                 continue
             # Check for pipe delimiter
             if "|" in line_clean:
                 parts = line_clean.split("|", 1)
                 flag["number"] = parts[0].strip()
-                flag["category"] = match_category(parts[1]) if len(parts)
+                flag["category"] = match_category(parts[1]) if len(parts) > 1 else "UNKNOWN"
                 category_found = True
-                break                             
+                break
             # Check if line matches a known category
             matched = match_category(line_clean)
             if matched != "UNKNOWN" and matched != line_clean:
@@ -167,11 +171,11 @@ def parse_red_flags(analysis_text: str) -> list:
 
         full_text = "\n".join(lines)
 
-        # Severity - scan all lines
-        sev_line = [l for l in lines if "Severity:" in l]
+        # Severity — scan all lines
+        sev_line = [l for l in lines if "severity" in l.lower()]
         if sev_line:
             flag["severity"] = clean_md(re.sub(r'(?i)severity:?', '', sev_line[0]))
-        else
+        else:
             flag["severity"] = "MEDIUM"
 
         # Quote
@@ -180,8 +184,8 @@ def parse_red_flags(analysis_text: str) -> list:
             if quote_start == -1:
                 quote_start = full_text.find('Quote :')
                 quote_start += 7
-            else
-                quote_start+= 6
+            else:
+                quote_start += 6
             quote_end = full_text.find("Why It's Suspicious:")
             if quote_end == -1:
                 quote_end = quote_start + 500
@@ -199,7 +203,7 @@ def parse_red_flags(analysis_text: str) -> list:
         else:
             flag["explanation"] = ""
 
-        if flag.get("category") and (flag.get("quote") or flag.get("explanation")):
+        if flag.get("category"):
             red_flags.append(flag)
 
     return red_flags
