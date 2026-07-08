@@ -211,7 +211,7 @@ if "results" in st.session_state:
         st.markdown(f"""
         <div class="flag-card">
             <div class="flag-header">
-                <div class="flag-cat">{html_module.escpae(category)}</div>
+                <div class="flag-cat">{html_module.escape(category)}</div>
                 <div class="flag-sev" style="color: {sev_color};">{sev}</div>
             </div>
             <div class="flag-quote">{quote}</div>
