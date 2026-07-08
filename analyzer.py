@@ -1,17 +1,5 @@
 import os
 import pymupdf4llm
-import html as html_module
-import re
-
-def md_to_html(text):
-    """Convert simple markdown to safe HTML for rendering inside divs"""
-    if not text:
-        return ""
-    text = html_module.escape(text)
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-    text = text.replace('\n', '<br>')
-    return text
 
 CYNICAL_MD_PROMPT = """
 You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs). 
