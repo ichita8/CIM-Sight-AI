@@ -1,7 +1,19 @@
 import streamlit as st
 import tempfile
 import os
+import re
+import html as html_module
 from analyzer import analyze_cim, get_severity_color, get_overall_risk
+
+def md_to_html(text):
+    """Convert simple markdown to safe HTML for rendering inside divs"""
+    if not text:
+        return ""
+    text = html_module.escape(text)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+    text = text.replace('\n', '<br>')
+    return text
 
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -199,11 +211,11 @@ if "results" in st.session_state:
         st.markdown(f"""
         <div class="flag-card">
             <div class="flag-header">
-                <span class="cat-badge">{flag.get('category', 'UNKNOWN')}</span>
-                <span class="sev-badge" style="background:{sev_color}22; color:{sev_color};">{sev}</span>
+                <div class="flag-cat">{html_module.escpae(category)}</div>
+                <div class="flag-sev" style="color: {sev_color};">{sev}</div>
             </div>
-            <div class="flag-quote">{flag.get('quote', 'No quote extracted.')}</div>
-            <div class="flag-analysis">{flag.get('explanation', '')}</div>
+            <div class="flag-quote">{quote}</div>
+            <div class="flag-explanation">{explanation}</div>
         </div>
         """, unsafe_allow_html=True)
 
