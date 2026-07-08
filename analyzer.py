@@ -1,6 +1,6 @@
 import os
 import pymupdf4llm
-import html
+import html as html_module
 import re
 
 def md_to_html(text):
