@@ -1,8 +1,10 @@
 import os
+import re
 import pymupdf4llm
+from rule_checks import run_rule_based_checks
 
 CYNICAL_MD_PROMPT = """
-You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs). 
+You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs).
 You have seen dozens of deals collapse due to hidden risks, inflated projections, and misleading financials buried in these documents.
 
 Your job is NOT to summarize this CIM. Your job is to be a cynical, aggressive auditor hunting for anything that smells off.
@@ -38,6 +40,7 @@ Rules:
 - After all red flags, add a section called "OVERALL RISK ASSESSMENT" with a paragraph summary and an overall deal risk rating: LOW / MEDIUM / HIGH / CRITICAL
 """
 
+
 def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
     """Extract markdown text from PDF using PyMuPDF4LLM"""
     try:
@@ -52,22 +55,32 @@ def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
     except Exception as e:
         raise Exception(f"Failed to extract PDF text: {str(e)}")
 
+
 def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
     """Run the full CIM analysis pipeline"""
 
     # Step 1: Extract text
     raw_text = extract_text_from_pdf(pdf_path)
 
-    # Truncate if too long (Groq has ~32k context on most models)
+    # Truncate if too long
     if len(raw_text) > 100000:
         raw_text = raw_text[:100000] + "\n\n[Document truncated for analysis - first 100,000 characters processed]"
 
-    # Step 2: Run Groq analysis
+    # Step 2: Run deterministic rule-based checks FIRST
+    rule_results = run_rule_based_checks(raw_text)
+    rule_findings = rule_results.get("findings", [])
+
+    # Step 3: Run Cerebras LLM analysis
     from openai import OpenAI
     client = OpenAI(
         base_url="https://api.cerebras.ai/v1",
         api_key=os.environ.get("CEREBRAS_API_KEY")
     )
+
+    # Include rule-based findings in the prompt so the LLM is aware
+    rule_context = ""
+    if rule_findings:
+        rule_context = "\n\n--- PRE-COMPUTED ARITHMETIC FINDINGS (verify these) ---\n" + rule_results.get("summary", "")
 
     response = client.chat.completions.create(
         model="gpt-oss-120b",
@@ -78,7 +91,7 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
             },
             {
                 "role": "user",
-                "content": f"--- CIM DOCUMENT TEXT BELOW ---\n\n{raw_text}"
+                "content": f"--- CIM DOCUMENT TEXT BELOW ---\n\n{raw_text}{rule_context}"
             }
         ],
         max_tokens=8000,
@@ -87,20 +100,20 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
 
     analysis = response.choices[0].message.content
 
-    # Step 3: Parse red flags
+    # Step 4: Parse red flags
     red_flags = parse_red_flags(analysis)
 
     return {
         "raw_analysis": analysis,
         "red_flags": red_flags,
+        "rule_findings": rule_findings,
         "text_length": len(raw_text),
         "doc_preview": raw_text[:500]
     }
 
+
 def parse_red_flags(analysis_text: str) -> list:
     """Parse the AI output into structured red flag objects"""
-    import re
-
     red_flags = []
 
     KNOWN_CATEGORIES = [
@@ -108,6 +121,7 @@ def parse_red_flags(analysis_text: str) -> list:
         "AGGRESSIVE PROJECTIONS",
         "CUSTOMER CONCENTRATION RISK",
         "DEBT & LIABILITY RED FLAGS",
+        "DEBT AND LIABILITY RED FLAGS",
         "MANAGEMENT LANGUAGE TELLS",
         "MARGIN INCONSISTENCIES",
     ]
@@ -118,17 +132,22 @@ def parse_red_flags(analysis_text: str) -> list:
         return text.strip()
 
     def match_category(text):
-        """Match text against known categories, return best match or cleaned text"""
+        """Match text against known categories"""
         text_clean = clean_md(text)
         text_upper = text_clean.upper()
+        # Normalize & vs AND
+        text_norm = text_upper.replace("&", "AND")
+
         for known in KNOWN_CATEGORIES:
-            if known in text_upper or text_upper in known:
-                return known
-        # Partial keyword matching
+            known_norm = known.replace("&", "AND")
+            if known_norm in text_norm or text_norm in known_norm:
+                # Return the canonical form (with &)
+                return known.replace("DEBT AND", "DEBT &")
+        # Partial keyword matching — try pairs of keywords
         for known in KNOWN_CATEGORIES:
-            keywords = known.split()
-            if all(kw in text_upper for kw in keywords[:2]):
-                return known
+            keywords = known.replace("&", "AND").split()
+            if len(keywords) >= 2 and all(kw in text_norm for kw in keywords[:2]):
+                return known.replace("DEBT AND", "DEBT &")
         return text_clean if text_clean else "UNKNOWN"
 
     # Split on "RED FLAG" delimiter
@@ -161,7 +180,7 @@ def parse_red_flags(analysis_text: str) -> list:
                 category_found = True
                 break
             # Check if line starts with # (number only, no category)
-            if line_clean.startswith("#") or line_clean[0].isdigit():
+            if line_clean.startswith("#") or (line_clean and line_clean[0].isdigit()):
                 flag["number"] = line_clean.lstrip("#").strip()
                 continue
 
@@ -171,7 +190,7 @@ def parse_red_flags(analysis_text: str) -> list:
 
         full_text = "\n".join(lines)
 
-        # Severity — scan all lines
+        # Severity
         sev_line = [l for l in lines if "severity" in l.lower()]
         if sev_line:
             flag["severity"] = clean_md(re.sub(r'(?i)severity:?', '', sev_line[0]))
@@ -203,10 +222,14 @@ def parse_red_flags(analysis_text: str) -> list:
         else:
             flag["explanation"] = ""
 
-        if flag.get("category"):
+        # Only keep flags that have actual content
+        if flag.get("category") and flag["category"] != "UNKNOWN" and (flag.get("quote") or flag.get("explanation")):
+            red_flags.append(flag)
+        elif flag.get("category") == "UNKNOWN" and (flag.get("quote") or flag.get("explanation")):
             red_flags.append(flag)
 
     return red_flags
+
 
 def get_severity_color(severity: str) -> str:
     severity = severity.upper()
@@ -217,8 +240,9 @@ def get_severity_color(severity: str) -> str:
     else:
         return "#FFD700"
 
+
 def get_overall_risk(analysis_text: str) -> str:
     if "OVERALL RISK ASSESSMENT" in analysis_text:
         start = analysis_text.find("OVERALL RISK ASSESSMENT")
         return analysis_text[start:].strip()
-    return ""
+    return "
