@@ -201,9 +201,10 @@ if "results" in st.session_state:
     overall = get_overall_risk(results.get("raw_analysis", ""))
     if overall:
         st.markdown(
-            f'<div style = "background: #14161C; border: 1px solid rgba(201,168,76,0.3); border-radius: 8px; padding: 20px; margin: 0;">'
-            f'<div style = "font-family: monospace; font-size: 11px; font-weight: bold; letter-spacing: 0.1em; color: #C9A84C; text-transform: uppercase; margin-bottom: 12px;">Overall Risk Assessment</div>'
-            f'<div style ="font-size: 14px; line-height: 1.7; color: #B0BAC9;">{md_to_html(overall)}</div>'
+            f'<div style="background: #14161C; border: 1px solid rgba(201,168,76,0.3); border-radius: 8px; padding: 20px; margin: 16px 0;">'
+            f'<div style="font-family: monospace; font-size: 11px; font-weight: bold; letter-spacing: 0.1em; color: #C9A84C; text-transform: uppercase; margin-bottom: 12px;">Overall Risk Assessment</div>'
+            f'<div style="font-size: 14px; line-height: 1.7; color: #B0BAC9;">{md_to_html(overall)}</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
