@@ -9,13 +9,8 @@ def md_to_html(text):
     """Convert simple markdown to safe HTML for rendering inside divs"""
     if not text:
         return ""
-    # Escape HTML first to prevent injection
     text = html_module.escape(text)
-    # Bold: **text** -> <strong>text</strong>
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    # Italic: *text* -> <em>text</em>
-    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-    # Newlines to <br>
     text = text.replace('\n', '<br>')
     return text
 
