@@ -9,9 +9,13 @@ def md_to_html(text):
     """Convert simple markdown to safe HTML for rendering inside divs"""
     if not text:
         return ""
+    # Escape HTML first to prevent injection
     text = html_module.escape(text)
+    # Bold: **text** -> <strong>text</strong>
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    # Italic: *text* -> <em>text</em>
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+    # Newlines to <br>
     text = text.replace('\n', '<br>')
     return text
 
@@ -197,7 +201,9 @@ if "results" in st.session_state:
     overall = get_overall_risk(results.get("raw_analysis", ""))
     if overall:
         st.markdown(
-            f'<div class="risk-banner" style="border:1px solid rgba(255,59,59,0.25); background:rgba(255,59,59,0.05);">{overall.replace(chr(10), "<br>")}</div>',
+            f'<div style = "background: #14161C; border: 1px solid rgba(201,168,76,0.3); border-radius: 8px; padding: 20px; margin: 0;">'
+            f'<div style = "font-family: monospace; font-size: 11px; font-weight: bold; letter-spacing: 0.1em; color: #C9A84C; text-transform: uppercase; margin-bottom: 12px;">Overall Risk Assessment</div>'
+            f'<div style ="font-size: 14px; line-height: 1.7; color: #B0BAC9;">{md_to_html(overall)}</div>'
             unsafe_allow_html=True,
         )
 
@@ -208,22 +214,22 @@ if "results" in st.session_state:
     for flag in red_flags:
         sev = flag.get("severity", "MEDIUM").upper()
         sev_color = get_severity_color(sev)
-
-        # Extract the variables from the dictionary so Python can find them
-        category = flag.get("category", "Unknown")
-        quote = flag.get("quote", "")
-        explanation = flag.get("explanation", "")
+        category = flag.get("category", "UNKNOWN")
+        quote = md_to_html(flag.get("quote", "No quote extracted."))
+        explanation = md_to_html(flag.get("explanation", ""))
         
-        st.markdown(f"""
-        <div class="flag-card">
-            <div class="flag-header">
-                <div class="flag-cat">{md_to_html(category)}</div>
-                <div class="flag-sev" style="color: {sev_color};">{sev}</div>
-            </div>
-            <div class="flag-quote">{quote}</div>
-            <div class="flag-explanation">{explanation}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="background: #14161C; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; margin-bottom: 16px;">'
+            f'<div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-wrap: wrap; gap: 8px;">'
+            f'<span style="font-family: monospace; font-size: 10px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; background: rgba(201,168,76,0.15); color: #C9A84C;">{html_module.escape(category)}</span>'
+            f'<span style="font-family: monospace; font-size: 10px; font-weight: bold; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.05); color: {sev_color};">{sev}</span>'
+            f'</div>'
+            f'<div style="padding: 20px;">'
+            f'<div style="font-family: monospace; font-size: 12px; color: #B0BAC9; border-left: 3px solid #C9A84C; padding: 10px 16px; background: rgba(201,168,76,0.05); border-radius: 0 6px 6px 0; margin-bottom: 16px; line-height: 1.6;">{quote}</div>'
+            f'<div style="font-size: 13px; line-height: 1.7; color: #B0BAC9;">{explanation}</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True,
 
     # ── Raw output ──
     with st.expander("View Raw MD Engine Output"):
