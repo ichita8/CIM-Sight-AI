@@ -135,28 +135,32 @@ def parse_red_flags(analysis_text: str) -> list:
         """Match text against known categories"""
         text_clean = clean_md(text)
         text_upper = text_clean.upper()
-        # Normalize & vs AND
         text_norm = text_upper.replace("&", "AND")
 
         for known in KNOWN_CATEGORIES:
             known_norm = known.replace("&", "AND")
             if known_norm in text_norm or text_norm in known_norm:
-                # Return the canonical form (with &)
                 return known.replace("DEBT AND", "DEBT &")
-        # Partial keyword matching — try pairs of keywords
         for known in KNOWN_CATEGORIES:
             keywords = known.replace("&", "AND").split()
             if len(keywords) >= 2 and all(kw in text_norm for kw in keywords[:2]):
                 return known.replace("DEBT AND", "DEBT &")
         return text_clean if text_clean else "UNKNOWN"
 
-    # Split on "RED FLAG" delimiter
-    sections = re.split(r'(?i)RED\s*FLAG', analysis_text)
+    # KEY FIX: Only split on "RED FLAG" at the START of a line (multiline mode).
+    # This prevents matching "red flag" in body text like "a classic red flag for..."
+    sections = re.split(r'(?im)^[ \t]*RED[ \t]*FLAG', analysis_text)
 
     for section in sections[1:]:
         flag = {}
         lines = section.strip().split("\n")
         if not lines or not lines[0].strip():
+            continue
+
+        # KEY FIX: Require a Severity line — all real flags have one.
+        # This filters phantom sections created by "red flag" in body text.
+        has_severity = any("severity" in l.lower() for l in lines)
+        if not has_severity:
             continue
 
         # Scan first 4 lines to find category
@@ -165,21 +169,18 @@ def parse_red_flags(analysis_text: str) -> list:
             line_clean = clean_md(line)
             if not line_clean:
                 continue
-            # Check for pipe delimiter
             if "|" in line_clean:
                 parts = line_clean.split("|", 1)
                 flag["number"] = parts[0].strip()
                 flag["category"] = match_category(parts[1]) if len(parts) > 1 else "UNKNOWN"
                 category_found = True
                 break
-            # Check if line matches a known category
             matched = match_category(line_clean)
             if matched != "UNKNOWN" and matched != line_clean:
                 flag["category"] = matched
                 flag["number"] = ""
                 category_found = True
                 break
-            # Check if line starts with # (number only, no category)
             if line_clean.startswith("#") or (line_clean and line_clean[0].isdigit()):
                 flag["number"] = line_clean.lstrip("#").strip()
                 continue
@@ -193,39 +194,44 @@ def parse_red_flags(analysis_text: str) -> list:
         # Severity
         sev_line = [l for l in lines if "severity" in l.lower()]
         if sev_line:
-            flag["severity"] = clean_md(re.sub(r'(?i)severity:?', '', sev_line[0]))
+            flag["severity"] = clean_md(re.sub(r'(?i)severity:?\s*', '', sev_line[0]))
         else:
             flag["severity"] = "MEDIUM"
 
-        # Quote
-        if 'Quote:' in full_text or 'Quote :' in full_text:
-            quote_start = full_text.find('Quote:')
-            if quote_start == -1:
-                quote_start = full_text.find('Quote :')
-                quote_start += 7
+        # Quote — text between "Quote:" and "Why It's Suspicious"
+        quote_pos = full_text.lower().find("quote:")
+        if quote_pos != -1:
+            quote_start = full_text.find(":", quote_pos) + 1
+            why_re = re.compile(r"(?i)why\s+it['\u2019]?s\s+suspicious")
+            why_match = why_re.search(full_text, quote_start)
+            if why_match:
+                quote_end = why_match.start()
             else:
-                quote_start += 6
-            quote_end = full_text.find("Why It's Suspicious:")
-            if quote_end == -1:
                 quote_end = quote_start + 500
             flag["quote"] = full_text[quote_start:quote_end].strip().strip('"').strip("'")
         else:
             flag["quote"] = ""
 
-        # Explanation
-        if "Why It's Suspicious:" in full_text:
-            exp_start = full_text.find("Why It's Suspicious:") + 20
-            exp_end = full_text.find("---")
-            if exp_end == -1 or exp_end < exp_start:
-                exp_end = len(full_text)
+        # Explanation — text after "Why It's Suspicious:" up to "---" or OVERALL RISK
+        why_re = re.compile(r"(?i)why\s+it['\u2019]?s\s+suspicious:?")
+        why_match = why_re.search(full_text)
+        if why_match:
+            exp_start = why_match.end()
+            # Find end: "---" on its own line, or OVERALL RISK ASSESSMENT
+            sep_match = re.search(r'\n\s*-{2,}', full_text[exp_start:])
+            overall_match = re.search(r'(?i)overall\s+risk\s+assessment', full_text[exp_start:])
+            ends = []
+            if sep_match:
+                ends.append(exp_start + sep_match.start())
+            if overall_match:
+                ends.append(exp_start + overall_match.start())
+            exp_end = min(ends) if ends else len(full_text)
             flag["explanation"] = full_text[exp_start:exp_end].strip()
         else:
             flag["explanation"] = ""
 
-        # Only keep flags that have actual content
-        if flag.get("category") and flag["category"] != "UNKNOWN" and (flag.get("quote") or flag.get("explanation")):
-            red_flags.append(flag)
-        elif flag.get("category") == "UNKNOWN" and (flag.get("quote") or flag.get("explanation")):
+        # Only keep flags with actual content
+        if flag.get("quote") or flag.get("explanation"):
             red_flags.append(flag)
 
     return red_flags
@@ -245,4 +251,4 @@ def get_overall_risk(analysis_text: str) -> str:
     if "OVERALL RISK ASSESSMENT" in analysis_text:
         start = analysis_text.find("OVERALL RISK ASSESSMENT")
         return analysis_text[start:].strip()
-    return "
+    return ""
