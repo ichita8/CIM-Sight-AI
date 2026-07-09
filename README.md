@@ -46,7 +46,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 4. Use It
+### 3. Use It
 - Open the app in your browser (usually `http://localhost:8501`)
 - Upload any CIM PDF
 - Click **Analyze CIM**
