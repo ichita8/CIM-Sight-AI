@@ -231,6 +231,7 @@ if "results" in st.session_state:
             f'</div>'
             f'</div>',
             unsafe_allow_html=True,
+        )
 
     # ── Raw output ──
     with st.expander("View Raw MD Engine Output"):
