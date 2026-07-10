@@ -1,3 +1,4 @@
+"""
 Deterministic, rule-based arithmetic checks for CIM-Sight AI.
 Runs BEFORE the LLM. No AI involved — pure Python verification.
 This is what makes CIM-Sight a true hybrid (rules + LLM) engine.
