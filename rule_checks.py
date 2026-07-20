@@ -9,6 +9,17 @@ import re
 MARGIN_TOLERANCE_PCT = 0.5   # percentage points
 GROWTH_TOLERANCE_PCT = 1.0   # percentage points
 
+# A dollar amount must show real money evidence — a leading "$", a magnitude
+# suffix (k/m/b), or thousands separators — and must NOT be a percentage.
+# Without this, a bare "45" in "gross margin of 45%" was matched as a dollar
+# figure, producing a false HIGH flag in the deterministic ("verified") box.
+_CURRENCY = (
+    r"(\$\s*[0-9][0-9.,]*\s*[kKmMbB]?"
+    r"|[0-9][0-9.,]*\s*[kKmMbB]"
+    r"|[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?)"
+    r"(?!\s*%)"
+)
+
 
 def _to_number(raw: str) -> float:
     """Convert '$1,234.5M' / '1.2B' / '45%' style strings into a float."""
@@ -35,7 +46,7 @@ def check_margin_consistency(text: str) -> list:
         re.IGNORECASE,
     )
     rev_match = re.search(
-        r"(?:total\s+)?revenue[^0-9$]{0,15}\$?\s*([0-9][0-9,\.]*\s*[kKmMbB]?)",
+        rf"(?:total\s+)?revenue[^$%0-9]{{0,15}}{_CURRENCY}",
         text, re.IGNORECASE,
     )
     revenue = _to_number(rev_match.group(1)) if rev_match else None
@@ -44,7 +55,7 @@ def check_margin_consistency(text: str) -> list:
         metric_name = m.group(1).lower()
         stated_pct = float(m.group(2))
         amt_pattern = re.compile(
-            rf"{metric_name}[^0-9$]{{0,20}}\$?\s*([0-9][0-9,\.]*\s*[kKmMbB]?)",
+            rf"{re.escape(metric_name)}[^$%0-9]{{0,20}}{_CURRENCY}",
             re.IGNORECASE,
         )
         amt_match = amt_pattern.search(text)
