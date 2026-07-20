@@ -124,10 +124,10 @@ except Exception:
 
 if not api_key:
     api_key = st.text_input(
-        "Groq API Key",
+        "Cerebras API Key",
         type="password",
-        placeholder="gsk_...",
-        help="Get a free key at console.groq.com. Stored only for this session.",
+        placeholder="csk-...",
+        help="Get a free key at cloud.cerebras.ai. Stored only for this session.",
     )
 
 # ─────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ if analyze_clicked:
                 tmp.write(uploaded_file.getvalue())
                 tmp_path = tmp.name
             try:
-                results = analyze_cim(tmp_path)
+                results = analyze_cim(tmp_path, api_key=api_key)
                 st.session_state["results"] = results
             except Exception as e:
                 st.error(f"Analysis failed: {str(e)}")

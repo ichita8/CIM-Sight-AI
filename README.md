@@ -26,7 +26,7 @@ Each flag includes a **verbatim quote**, **severity rating** (HIGH / MEDIUM / LO
 
 | Component | Tool | Cost |
 |-----------|------|------|
-| PDF Extraction | PyMuPDF4LLM | Free |
+| PDF Extraction | Docling | Free |
 | AI Model | Cerebras GPT-OSS-120B | Free |
 | Dashboard | Streamlit | Free |
 
