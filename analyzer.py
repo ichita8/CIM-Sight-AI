@@ -1,6 +1,9 @@
 import os
 import re
-import pymupdf4llm
+from functools import lru_cache
+
+from docling.document_converter import DocumentConverter
+
 from rule_checks import run_rule_based_checks
 
 CYNICAL_MD_PROMPT = """
@@ -41,17 +44,18 @@ Rules:
 """
 
 
-def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
-    """Extract markdown text from PDF using PyMuPDF4LLM"""
-    try:
-        import fitz
-        doc = fitz.open(pdf_path)
-        total_pages = len(doc)
-        doc.close()
+@lru_cache(maxsize=1)
+def _get_converter() -> DocumentConverter:
+    """Build the Docling converter once and reuse it (model load is expensive)."""
+    return DocumentConverter()
 
-        pages_to_extract = list(range(min(max_pages, total_pages)))
-        md_text = pymupdf4llm.to_markdown(pdf_path, pages=pages_to_extract)
-        return md_text
+
+def extract_text_from_pdf(pdf_path: str, max_pages: int = 100) -> str:
+    """Extract markdown text from a PDF using the Docling document engine."""
+    try:
+        converter = _get_converter()
+        result = converter.convert(pdf_path, page_range=(1, max_pages))
+        return result.document.export_to_markdown()
     except Exception as e:
         raise Exception(f"Failed to extract PDF text: {str(e)}")
 
@@ -74,7 +78,7 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
     from openai import OpenAI
     client = OpenAI(
         base_url="https://api.cerebras.ai/v1",
-        api_key=os.environ.get("CEREBRAS_API_KEY")
+        api_key=api_key or os.environ.get("CEREBRAS_API_KEY")
     )
 
     # Include rule-based findings in the prompt so the LLM is aware
