@@ -2,6 +2,7 @@ import os
 import re
 import pymupdf4llm
 from rule_checks import run_rule_based_checks
+from reconcile import deduplicate_flags
 
 CYNICAL_MD_PROMPT = """
 You are a Managing Director at a top-tier investment bank with 20+ years of experience reviewing Confidential Information Memorandums (CIMs).
@@ -103,10 +104,16 @@ def analyze_cim(pdf_path: str, api_key: str = None) -> dict:
     # Step 4: Parse red flags
     red_flags = parse_red_flags(analysis)
 
+    # Step 5: Drop LLM flags already verified by the arithmetic engine so the
+    # two sections can't duplicate or contradict each other on screen.
+    parsed_count = len(red_flags)
+    red_flags, rule_findings = deduplicate_flags(red_flags, rule_findings)
+
     return {
         "raw_analysis": analysis,
         "red_flags": red_flags,
         "rule_findings": rule_findings,
+        "suppressed_flag_count": parsed_count - len(red_flags),
         "text_length": len(raw_text),
         "doc_preview": raw_text[:500]
     }

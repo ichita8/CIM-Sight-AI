@@ -183,14 +183,30 @@ if "results" in st.session_state:
 
     # ── Deterministic engine findings (verified, no LLM) ──
     if rule_findings:
-        items_html = "".join(
-            f'<div class="verified-item"><b>[{f["severity"]}] {f["category"]}</b> — {f["detail"]}</div>'
-            for f in rule_findings
-        )
+        def _finding_html(f):
+            corroborated = (
+                '<span style="font-family:JetBrains Mono,monospace; font-size:10px; '
+                'font-weight:700; letter-spacing:0.08em; margin-left:8px; padding:2px 8px; '
+                'border-radius:4px; background:rgba(61,214,140,0.15); color:#3DD68C;">'
+                '✓ AI AGREED</span>'
+                if f.get("ai_corroborated") else ""
+            )
+            return (
+                f'<div class="verified-item"><b>[{f["severity"]}] {f["category"]}</b>'
+                f' — {f["detail"]}{corroborated}</div>'
+            )
+
+        items_html = "".join(_finding_html(f) for f in rule_findings)
         st.markdown(
             f'<div class="verified-box"><div class="verified-title">✓ Verified by Arithmetic Engine (deterministic, no AI)</div>{items_html}</div>',
             unsafe_allow_html=True,
         )
+        suppressed = results.get("suppressed_flag_count", 0)
+        if suppressed:
+            st.caption(
+                f"{suppressed} AI red flag(s) that merely restated the verified arithmetic "
+                "above were merged into it to avoid duplicate or conflicting cards."
+            )
 
     # ── Overall risk assessment ──
     overall = get_overall_risk(results.get("raw_analysis", ""))
