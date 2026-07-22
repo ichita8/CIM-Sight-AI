@@ -69,6 +69,7 @@ def _get_docling_converter() -> Any:
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = False
+    pipeline_options.do_table_structure = False
     return DocumentConverter(
         allowed_formats=[InputFormat.PDF],
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)},
