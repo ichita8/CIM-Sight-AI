@@ -93,7 +93,7 @@ def extract_text_from_pdf(pdf_path: str | Path, max_pages: int = DEFAULT_MAX_PAG
         result = _get_docling_converter().convert(
             path,
             raises_on_error=True,
-            max_num_pages=max_pages,
+            page_range=(1, max_pages),   # ← converts first 100 pages, doesn't reject
         )
         document = getattr(result, "document", None)
         if document is None:
