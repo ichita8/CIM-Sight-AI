@@ -104,7 +104,7 @@ def extract_text_from_pdf(pdf_path: str | Path, max_pages: int = DEFAULT_MAX_PAG
         raise
     except Exception as exc:
         raise PdfExtractionError(
-            "Docling could not extract this PDF. (Underlying error: {exc})"
+            f"Docling could not extract this PDF. (Underlying error: {exc})"
         ) from exc
 
     if not isinstance(markdown, str) or not markdown.strip():
