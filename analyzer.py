@@ -4,10 +4,13 @@ import os
 import re
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+import pymupdf  # PyMuPDF — lightweight, no torch, no libGL needed
+
 from rule_checks import run_rule_based_checks
+
 ANALYSIS_CHARACTER_LIMIT = 100_000
 CHUNK_SIZE = 80_000
 CHUNK_OVERLAP = 10_000
@@ -15,12 +18,20 @@ SCANNED_CHARS_PER_PAGE = 180
 DEFAULT_MAX_PAGES = 150
 DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b"
 MAX_LLM_RETRIES = 4
+
+
 class PdfExtractionError(RuntimeError):
-    """Raised when a PDF cannot be converted into usable Markdown."""
+    """Raised when a PDF cannot be converted into usable text."""
+
+
 class ConfigurationError(RuntimeError):
     """Raised when a required application configuration value is missing."""
+
+
 class CerebrasAnalysisError(RuntimeError):
     """Raised when the Cerebras API cannot complete analysis."""
+
+
 @dataclass
 class SourceSpan:
     paragraph_id: str | None = None
@@ -28,129 +39,87 @@ class SourceSpan:
     page_number: int | None = None
     text: str = ""
     ocr_confidence: float | None = None
+
+
 @dataclass
 class ExtractionResult:
     markdown: str
     source_spans: list[SourceSpan] = field(default_factory=list)
     used_ocr: bool = False
     table_count: int = 0
-CYNICAL_MD_PROMPT = """
-You are a Managing Director at a top-tier investment bank with 20+ years of
-experience reviewing Confidential Information Memorandums (CIMs). Your job is
-not to summarize the CIM. Audit it for material, document-supported risks.
-Identify only genuine red flags across these categories:
-1. MATH ERRORS
-2. AGGRESSIVE PROJECTIONS
-3. CUSTOMER CONCENTRATION RISK
-4. DEBT & LIABILITY RED FLAGS
-5. MANAGEMENT LANGUAGE TELLS
-6. MARGIN INCONSISTENCIES
-For every finding, use exactly this machine-readable structure (no Markdown in
-the RED FLAG, Severity, or Quote labels):
-RED FLAG #<number> | <CATEGORY NAME>
-Severity: <HIGH | MEDIUM | LOW | CRITICAL>
-Quote: "<exact supporting quotation from the document>"
-Why It's Suspicious: <specific, concise explanation>
----
-Do not invent facts or quotes. Do not contradict the verified arithmetic findings
-provided separately — those were confirmed deterministically.
-After the findings, include a section titled OVERALL RISK ASSESSMENT with a
-concise summary and a LOW, MEDIUM, HIGH, or CRITICAL risk rating.
-""".strip()
-KNOWN_CATEGORIES = (
-    "MATH ERRORS",
-    "AGGRESSIVE PROJECTIONS",
-    "CUSTOMER CONCENTRATION RISK",
-    "DEBT & LIABILITY RED FLAGS",
-    "MANAGEMENT LANGUAGE TELLS",
-    "MARGIN INCONSISTENCIES",
-)
-def _build_docling_converter(*, enable_ocr: bool) -> Any:
-    try:
-        from docling.datamodel.base_models import InputFormat
-        from docling.datamodel.pipeline_options import PdfPipelineOptions
-        from docling.document_converter import DocumentConverter, PdfFormatOption
-    except ImportError as exc:
+
+
+def _convert_pdf(path: Path, *, max_pages: int) -> ExtractionResult:
+    """Extract text + tables from a PDF using PyMuPDF (fitz).
+
+    Replaces the Docling-based converter.  No torch, no system libraries,
+    no model downloads — works on Streamlit Community Cloud free tier.
+    """
+    doc = pymupdf.open(str(path))
+    if doc.is_encrypted:
+        doc.close()
         raise PdfExtractionError(
-            "Docling is not installed. Run `pip install -r requirements.txt` "
-            "before analyzing a CIM."
-        ) from exc
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_table_structure = True
-    pipeline_options.do_ocr = enable_ocr
-    return DocumentConverter(
-        allowed_formats=[InputFormat.PDF],
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)},
-    )
-@lru_cache(maxsize=2)
-def _get_docling_converter(enable_ocr: bool = False) -> Any:
-    return _build_docling_converter(enable_ocr=enable_ocr)
-def _looks_scanned(markdown: str, max_pages: int) -> bool:
-    chars_per_page = len(markdown.strip()) / max(max_pages, 1)
-    return chars_per_page < SCANNED_CHARS_PER_PAGE
-def _extract_page_number(item: Any) -> int | None:
-    prov = getattr(item, "prov", None) or []
-    if not prov:
-        return None
-    first = prov[0]
-    page = getattr(first, "page_no", None)
-    if page is None:
-        page = getattr(first, "page", None)
-    return int(page) if page is not None else None
-def _extract_confidence(item: Any) -> float | None:
-    for attr in ("confidence", "ocr_confidence", "score"):
-        value = getattr(item, attr, None)
-        if isinstance(value, (int, float)):
-            return float(value)
-    return None
-def _build_source_spans(document: Any) -> list[SourceSpan]:
+            "This PDF is encrypted. Remove the password protection and try again."
+        )
+
+    pages_to_read = min(doc.page_count, max(1, max_pages))
+    markdown_parts: list[str] = []
     spans: list[SourceSpan] = []
-    for idx, item in enumerate(getattr(document, "texts", []) or []):
-        text = getattr(item, "text", "") or ""
-        if not text.strip():
-            continue
-        spans.append(
-            SourceSpan(
-                paragraph_id=str(getattr(item, "self_ref", f"text_{idx}")),
-                page_number=_extract_page_number(item),
-                text=text.strip(),
-                ocr_confidence=_extract_confidence(item),
+    table_count = 0
+
+    for page_idx in range(pages_to_read):
+        page = doc[page_idx]
+        page_number = page_idx + 1
+
+        # --- Text ---
+        page_text = page.get_text("text")
+        if page_text.strip():
+            markdown_parts.append(page_text.strip())
+            spans.append(
+                SourceSpan(
+                    paragraph_id=f"page_{page_number}",
+                    page_number=page_number,
+                    text=page_text.strip(),
+                    ocr_confidence=None,
+                )
             )
-        )
-    for idx, table in enumerate(getattr(document, "tables", []) or []):
-        table_id = str(getattr(table, "self_ref", f"table_{idx}"))
-        table_text = ""
+
+        # --- Tables (best-effort; PyMuPDF 1.23+) ---
         try:
-            table_text = str(table.export_to_markdown())
+            table_finder = page.find_tables()
+            for table in table_finder.tables:
+                table_md = table.to_markdown()
+                if table_md and table_md.strip():
+                    table_count += 1
+                    markdown_parts.append(table_md.strip())
+                    spans.append(
+                        SourceSpan(
+                            table_id=f"table_{table_count}",
+                            page_number=page_number,
+                            text=table_md.strip(),
+                            ocr_confidence=None,
+                        )
+                    )
         except Exception:
-            table_text = str(getattr(table, "text", "") or "")
-        spans.append(
-            SourceSpan(
-                table_id=table_id,
-                page_number=_extract_page_number(table),
-                text=table_text.strip(),
-                ocr_confidence=_extract_confidence(table),
-            )
+            pass  # table detection is optional — never let it crash extraction
+
+    doc.close()
+
+    markdown = "\n\n".join(markdown_parts)
+    if not markdown.strip():
+        raise PdfExtractionError(
+            "No readable text was found in this PDF. "
+            "It may be a scanned document with no embedded text layer."
         )
-    return spans
-def _convert_pdf(path: Path, *, enable_ocr: bool, max_pages: int) -> ExtractionResult:
-    result = _get_docling_converter(enable_ocr=enable_ocr).convert(
-    path,
-    raises_on_error=True,
-    page_range=(1, max_pages),
-)
-    document = getattr(result, "document", None)
-    if document is None:
-        raise PdfExtractionError("Docling could not create a document from this PDF.")
-    markdown = document.export_to_markdown()
-    if not isinstance(markdown, str) or not markdown.strip():
-        raise PdfExtractionError("Docling extracted no readable text from this PDF.")
+
     return ExtractionResult(
         markdown=markdown.strip(),
-        source_spans=_build_source_spans(document),
-        used_ocr=enable_ocr,
-        table_count=len(getattr(document, "tables", []) or []),
+        source_spans=spans,
+        used_ocr=False,
+        table_count=table_count,
     )
+
+
 def extract_document_from_pdf(
     pdf_path: str | Path,
     max_pages: int = DEFAULT_MAX_PAGES,
@@ -162,66 +131,21 @@ def extract_document_from_pdf(
         raise PdfExtractionError("CIM-Sight currently accepts PDF files only.")
     if isinstance(max_pages, bool) or not isinstance(max_pages, int) or max_pages < 1:
         raise ValueError("max_pages must be a positive integer.")
+
     try:
-        extraction = _convert_pdf(path, enable_ocr=False, max_pages=max_pages)
-        if _looks_scanned(extraction.markdown, max_pages):
-            extraction = _convert_pdf(path, enable_ocr=True, max_pages=max_pages)
-            extraction.used_ocr = True
-        return extraction
+        return _convert_pdf(path, max_pages=max_pages)
     except PdfExtractionError:
         raise
     except Exception as exc:
         raise PdfExtractionError(
-            f"Docling could not extract this PDF. Confirm that it is a readable, "
+            f"Could not extract this PDF. Confirm that it is a readable, "
             f"unencrypted PDF and try again. ({type(exc).__name__}: {exc})"
         ) from exc
+
+
 def extract_text_from_pdf(pdf_path: str | Path, max_pages: int = DEFAULT_MAX_PAGES) -> str:
-    """Backward-compatible helper returning Markdown only."""
+    """Backward-compatible helper returning the full Markdown only."""
     return extract_document_from_pdf(pdf_path, max_pages=max_pages).markdown
-def _similarity(left: str, right: str) -> float:
-    return SequenceMatcher(None, left.lower(), right.lower()).ratio()
-def resolve_provenance(
-    quote: str,
-    markdown: str,
-    source_spans: list[SourceSpan],
-    char_offset: int | None = None,
-) -> dict[str, Any]:
-    empty: dict[str, Any] = {
-        "page_number": None,
-        "table_id": None,
-        "paragraph_id": None,
-        "raw_extracted_values": [],
-        "ocr_confidence": None,
-        "char_offset": char_offset,
-    }
-    if not quote and char_offset is None:
-        return empty
-    best_span: SourceSpan | None = None
-    best_score = 0.0
-    needle = (quote or "")[:120].strip()
-    for span in source_spans:
-        if not span.text:
-            continue
-        score = _similarity(needle, span.text[: max(len(needle), 1)])
-        if needle and needle.lower() in span.text.lower():
-            score = max(score, 0.95)
-        if score > best_score:
-            best_score = score
-            best_span = span
-    if best_span and best_score >= 0.45:
-        return {
-            "page_number": best_span.page_number,
-            "table_id": best_span.table_id,
-            "paragraph_id": best_span.paragraph_id,
-            "raw_extracted_values": [best_span.text[:240]] if best_span.text else [],
-            "ocr_confidence": best_span.ocr_confidence,
-            "char_offset": char_offset,
-        }
-    if needle:
-        pos = markdown.lower().find(needle.lower()[:80])
-        if pos >= 0:
-            empty["char_offset"] = pos
-    return empty
 def attach_provenance_to_findings(
     findings: list[dict[str, Any]],
     markdown: str,
