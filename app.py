@@ -73,7 +73,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<p class="subtle">Docling extracts tables and scanned text when needed. '
+    '<p class="subtle">PyMuPDF extracts tables and scanned text when needed. '
     'Deterministic checks run on the full document before chunked LLM review.</p>',
     unsafe_allow_html=True,
 )
@@ -101,7 +101,7 @@ if analyze_clicked:
         st.error("Upload a CIM PDF first.")
     else:
         temporary_path: Path | None = None
-        with st.spinner("Docling → full-document math checks → chunked LLM audit..."):
+        with st.spinner("PyMuPDF → full-document math checks → chunked LLM audit..."):
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
                     temporary_file.write(uploaded_file.getvalue())
