@@ -172,8 +172,8 @@ def extract_document_from_pdf(
         raise
     except Exception as exc:
         raise PdfExtractionError(
-            "Docling could not extract this PDF. Confirm that it is a readable, "
-            "unencrypted PDF and try again."
+            f"Docling could not extract this PDF. Confirm that it is a readable, "
+            f"unencrypted PDF and try again. ({type(exc).__name__}: {exc})"
         ) from exc
 def extract_text_from_pdf(pdf_path: str | Path, max_pages: int = DEFAULT_MAX_PAGES) -> str:
     """Backward-compatible helper returning Markdown only."""
