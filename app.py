@@ -101,7 +101,7 @@ if analyze_clicked:
         st.error("Upload a CIM PDF first.")
     else:
         temporary_path: Path | None = None
-        with st.spinner("PyMuPDF → full-document math checks → chunked LLM audit..."):
+        with st.spinner("Extracting PDF → full-document math checks → chunked LLM audit..."):
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
                     temporary_file.write(uploaded_file.getvalue())
