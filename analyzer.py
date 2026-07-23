@@ -135,10 +135,10 @@ def _build_source_spans(document: Any) -> list[SourceSpan]:
     return spans
 def _convert_pdf(path: Path, *, enable_ocr: bool, max_pages: int) -> ExtractionResult:
     result = _get_docling_converter(enable_ocr=enable_ocr).convert(
-        path,
-        raises_on_error=True,
-        max_num_pages=max_pages,
-    )
+    path,
+    raises_on_error=True,
+    page_range=(1, max_pages),
+)
     document = getattr(result, "document", None)
     if document is None:
         raise PdfExtractionError("Docling could not create a document from this PDF.")
