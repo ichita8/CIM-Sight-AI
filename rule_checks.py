@@ -6,17 +6,25 @@ This is what makes CIM-Sight a true hybrid (rules + LLM) engine.
 from __future__ import annotations
 import re
 from typing import Any, Optional
+
 MARGIN_TOLERANCE_PCT = 0.5
 GROWTH_TOLERANCE_PCT = 1.0
 CAP_TABLE_TOLERANCE_PCT = 1.5
+
 PERCENTAGE_BREAKDOWN_CUES = re.compile(
     r"\b(breakdown|mix|allocation|composition|split|distribution|concentration|cap\s*table|ownership)\b",
     re.IGNORECASE,
 )
+
+# Fixed: \b around $ never matched because $ is a non-word character.
+# Now uses two alternation groups: group(1) for named currencies,
+# group(2) for symbols ($, €, £).
 CURRENCY_PATTERN = re.compile(
-    r"\b(USD|EUR|GBP|CAD|\$|€|£)\b",
+    r"\b(USD|EUR|GBP|CAD)\b|(\$|€|£)",
     re.IGNORECASE,
 )
+
+
 def _finding(
     category: str,
     severity: str,
@@ -36,6 +44,8 @@ def _finding(
         "paragraph_id": None,
         "ocr_confidence": None,
     }
+
+
 def _to_number(raw: str) -> Optional[float]:
     if not raw:
         return None
@@ -50,6 +60,8 @@ def _to_number(raw: str) -> Optional[float]:
         return float(value) * multiplier
     except ValueError:
         return None
+
+
 def _find_financial_amounts(text: str, label: str) -> list[tuple[int, float, str]]:
     pattern = re.compile(
         rf"\b{re.escape(label)}\b(?!\s+margin\b)[^0-9$]{{0,45}}"
@@ -67,6 +79,8 @@ def _find_financial_amounts(text: str, label: str) -> list[tuple[int, float, str
         if number is not None:
             amounts.append((match.start(), number, raw.strip()))
     return amounts
+
+
 def check_margin_consistency(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     revenue_amounts = _find_financial_amounts(text, "revenue")
@@ -106,6 +120,8 @@ def check_margin_consistency(text: str) -> list[dict[str, Any]]:
                 )
             )
     return findings
+
+
 def check_percentage_sums(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for block in re.split(r"\n\s*\n", text):
@@ -132,6 +148,8 @@ def check_percentage_sums(text: str) -> list[dict[str, Any]]:
                     )
                 )
     return findings
+
+
 def check_growth_claims(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     pattern = re.compile(
@@ -163,6 +181,8 @@ def check_growth_claims(text: str) -> list[dict[str, Any]]:
                 )
             )
     return findings
+
+
 def check_cap_table_math(text: str) -> list[dict[str, Any]]:
     """Flag ownership blocks that do not sum to ~100%."""
     findings: list[dict[str, Any]] = []
@@ -194,12 +214,23 @@ def check_cap_table_math(text: str) -> list[dict[str, Any]]:
                     )
                 )
     return findings
+
+
 def check_currency_consistency(text: str) -> list[dict[str, Any]]:
     """Warn when multiple currencies appear without an explicit FX note."""
-    currencies = {match.group(1).upper().replace("€", "EUR").replace("£", "GBP").replace("$", "USD")
-                  for match in CURRENCY_PATTERN.finditer(text)}
+    # Fixed: handles both group(1) named currencies and group(2) symbols
+    currencies = {
+        (match.group(1) or match.group(2))
+        .upper()
+        .replace("€", "EUR")
+        .replace("£", "GBP")
+        .replace("$", "USD")
+        for match in CURRENCY_PATTERN.finditer(text)
+    }
     normalized = {c for c in currencies if c in {"USD", "EUR", "GBP", "CAD"}}
-    if len(normalized) >= 2 and not re.search(r"\b(FX|foreign exchange|converted|USD/EUR)\b", text, re.I):
+    if len(normalized) >= 2 and not re.search(
+        r"\b(FX|foreign exchange|converted|USD/EUR)\b", text, re.I
+    ):
         return [
             _finding(
                 "MATH ERRORS",
@@ -210,6 +241,8 @@ def check_currency_consistency(text: str) -> list[dict[str, Any]]:
             )
         ]
     return []
+
+
 def run_rule_based_checks(text: str) -> dict[str, object]:
     """Run all deterministic checks on the FULL extracted document text."""
     findings = [
