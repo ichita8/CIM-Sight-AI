@@ -7,7 +7,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 import streamlit as st
-from analyzer import analyze_cim, get_overall_risk, get_severity_color
+from analyzer import analyze_cim, get_overall_risk
 def _to_safe_html(text: object) -> str:
     return html.escape(str(text or "")).replace("\n", "<br>")
 def _load_api_key() -> str | None:
