@@ -1,244 +1,187 @@
-import streamlit as st
-import tempfile
+"""Streamlit interface for the CIM-Sight AI document audit."""
+from __future__ import annotations
+import html
+import json
 import os
-import re
-import html as html_module
-from analyzer import analyze_cim, get_severity_color, get_overall_risk
-
-def md_to_html(text):
-    """Convert simple markdown to safe HTML for rendering inside divs"""
-    if not text:
-        return ""
-    text = html_module.escape(text)
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = text.replace('\n', '<br>')
-    return text
-
-# ─────────────────────────────────────────────────────────────
-# PAGE CONFIG
-# ─────────────────────────────────────────────────────────────
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+import streamlit as st
+from analyzer import analyze_cim, get_overall_risk, get_severity_color
+def _to_safe_html(text: object) -> str:
+    return html.escape(str(text or "")).replace("\n", "<br>")
+def _load_api_key() -> str | None:
+    try:
+        value = st.secrets.get("CEREBRAS_API_KEY")
+        if value:
+            return str(value)
+    except Exception:
+        pass
+    return os.environ.get("CEREBRAS_API_KEY")
+def _format_provenance(item: dict) -> str:
+    parts = []
+    if item.get("page_number") is not None:
+        parts.append(f"p.{item['page_number']}")
+    if item.get("table_id"):
+        parts.append(f"table {item['table_id']}")
+    if item.get("paragraph_id"):
+        parts.append(f"para {item['paragraph_id']}")
+    if item.get("ocr_confidence") is not None:
+        parts.append(f"OCR {item['ocr_confidence']:.0%}")
+    if item.get("parse_quality") == "partial":
+        parts.append("partial parse")
+    return " · ".join(parts) if parts else "provenance unavailable"
+def _record_feedback(flag: dict, verdict: str) -> None:
+    st.session_state.setdefault("feedback_log", []).append(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "verdict": verdict,
+            "category": flag.get("category"),
+            "severity": flag.get("severity"),
+            "quote": flag.get("quote"),
+            "explanation": flag.get("explanation"),
+            "page_number": flag.get("page_number"),
+            "table_id": flag.get("table_id"),
+            "paragraph_id": flag.get("paragraph_id"),
+        }
+    )
 st.set_page_config(
     page_title="CIM-Sight AI — Forensic CIM Audit Engine",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
-# ─────────────────────────────────────────────────────────────
-# STYLING — obsidian / phosphor-gold forensic theme
-# ─────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
-    .stApp {
-        background: #080A0E;
-        color: #D4DCE9;
-        font-family: 'Inter', sans-serif;
-    }
-    #MainMenu, footer, header { visibility: hidden; }
-
-    .hero-title {
-        font-size: 42px; font-weight: 900; letter-spacing: -0.03em;
-        color: #D4DCE9; margin-bottom: 4px; line-height: 1.1;
-    }
-    .hero-title .gold { color: #C9A84C; }
-    .hero-sub {
-        font-family: 'JetBrains Mono', monospace; font-size: 12px;
-        letter-spacing: 0.15em; color: #C9A84C; text-transform: uppercase;
-        margin-bottom: 8px;
-    }
-    .hero-desc { font-size: 15px; color: #64748B; max-width: 640px; line-height: 1.7; }
-
-    .status-strip {
-        font-family: 'JetBrains Mono', monospace; font-size: 11px;
-        letter-spacing: 0.05em; color: #64748B; margin: 16px 0 24px;
-    }
-    .status-strip .live { color: #3DD68C; }
-
-    .flag-card {
-        border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
-        overflow: hidden; margin-bottom: 16px; background: #0F1117;
-    }
-    .flag-header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .cat-badge {
-        font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
-        letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px;
-        border-radius: 4px; background: rgba(201,168,76,0.15); color: #C9A84C;
-    }
-    .sev-badge {
-        font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
-        letter-spacing: 0.1em; padding: 4px 10px; border-radius: 4px;
-    }
-    .flag-quote {
-        font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #64748B;
-        border-left: 3px solid #C9A84C; padding: 10px 16px;
-        background: rgba(201,168,76,0.05); border-radius: 0 6px 6px 0;
-        margin: 0 20px 14px; line-height: 1.6;
-    }
-    .flag-analysis { font-size: 13px; color: #B0BAC9; line-height: 1.7; padding: 0 20px 18px; }
-
-    .verified-box {
-        border: 1px solid rgba(0,245,160,0.25); border-radius: 12px;
-        background: rgba(0,245,160,0.04); padding: 18px 22px; margin-bottom: 24px;
-    }
-    .verified-title {
-        font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
-        letter-spacing: 0.1em; color: #3DD68C; text-transform: uppercase; margin-bottom: 12px;
-    }
-    .verified-item { font-size: 13px; color: #B0BAC9; line-height: 1.7; margin-bottom: 6px; }
-
-    .risk-banner {
-        border-radius: 12px; padding: 22px 26px; margin: 8px 0 24px;
-        font-size: 14px; line-height: 1.7;
-    }
-
-    div.stButton > button {
-        background: #C9A84C; color: #080A0E; font-weight: 800;
-        letter-spacing: 0.05em; border: none; border-radius: 8px;
-        padding: 12px 28px; font-size: 14px;
-    }
-    div.stButton > button:hover { background: #F0C060; color: #080A0E; }
-</style>
-""", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────────────────────
-st.markdown('<div class="hero-sub">Institutional Deal Intelligence · Beta</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-title">CIM-Sight AI — <span class="gold">The Cynical MD Engine</span></div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-desc">Upload a Confidential Information Memorandum. A deterministic arithmetic engine verifies every margin and growth claim, then a 120B-parameter LLM hunts for hidden risks, aggressive projections, and management-language tells — the way a 20-year Managing Director would.</div>', unsafe_allow_html=True)
-st.markdown('<div class="status-strip">MODEL: GPT-OSS-120B &nbsp;·&nbsp; ENGINE: CYNICAL MD v1.0 + ARITHMETIC CHECKER &nbsp;·&nbsp; STATUS: <span class="live">● LIVE</span></div>', unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────
-# API KEY - read from Streamlit Secrets (no user input needed)
-# ─────────────────────────────────────────────────────────────
-api_key = None
-try:
-    api_key = st.secrets["CEREBRAS_API_KEY"]
-except Exception:
-    api_key = os.environ.get("CEREBRAS_API_KEY")
-
-if not api_key:
+st.markdown(
+    """
+    <style>
+        .stApp { background: #080A0E; color: #D4DCE9; }
+        #MainMenu, footer, header { visibility: hidden; }
+        .hero-title { font-size: 42px; font-weight: 800; color: #D4DCE9; }
+        .gold { color: #C9A84C; }
+        .subtle { color: #94A3B8; line-height: 1.6; }
+        .flag-card { background: #14161C; border: 1px solid rgba(255,255,255,.10);
+                     border-radius: 12px; padding: 18px 20px; margin: 12px 0; }
+        .quote { border-left: 3px solid #C9A84C; padding: 10px 14px;
+                 color: #B0BAC9; background: rgba(201,168,76,.05); }
+        .meta { color: #718096; font-size: 0.85rem; margin-top: 8px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="hero-title">CIM-Sight AI — <span class="gold">The Cynical MD Engine</span></div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p class="subtle">Docling extracts tables and scanned text when needed. '
+    'Deterministic checks run on the full document before chunked LLM review.</p>',
+    unsafe_allow_html=True,
+)
+configured_key = _load_api_key()
+if configured_key:
+    api_key = configured_key
+    st.caption("Cerebras API key loaded from secure configuration.")
+else:
     api_key = st.text_input(
         "Cerebras API Key",
         type="password",
-        placeholder="csk-...",
-        help="Get a free key at cloud.cerebras.ai. Stored only for this session.",
+        placeholder="Paste a Cerebras API key",
+        help="Used only for this analysis request; it is not written to disk.",
     )
-
-# ─────────────────────────────────────────────────────────────
-# FILE UPLOAD
-# ─────────────────────────────────────────────────────────────
-uploaded_file = st.file_uploader("Upload CIM (PDF)", type=["pdf"], label_visibility="collapsed")
-
-col_a, col_b = st.columns([1, 4])
-with col_a:
+uploaded_file = st.file_uploader("Upload CIM (PDF)", type=["pdf"])
+left, right = st.columns([1, 3])
+with left:
+    max_pages = st.number_input("Pages to analyze", min_value=1, max_value=500, value=100, step=1)
+with right:
     analyze_clicked = st.button("🔍 ANALYZE CIM", use_container_width=True)
-
-# ─────────────────────────────────────────────────────────────
-# RUN ANALYSIS
-# ─────────────────────────────────────────────────────────────
 if analyze_clicked:
     if not api_key:
-        st.error("Cerebras API key not found. Add CEREBRAS_API_KEY to Streamlit Secrets.")
-    elif not uploaded_file:
-        st.error("Please upload a CIM PDF first.")
+        st.error("Add a Cerebras API key before running the analysis.")
+    elif uploaded_file is None:
+        st.error("Upload a CIM PDF first.")
     else:
-        with st.spinner("Extracting document → running arithmetic checks → activating MD Engine..."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.getvalue())
-                tmp_path = tmp.name
+        temporary_path: Path | None = None
+        with st.spinner("Docling → full-document math checks → chunked LLM audit..."):
             try:
-                results = analyze_cim(tmp_path, api_key=api_key)
-                st.session_state["results"] = results
-            except Exception as e:
-                st.error(f"Analysis failed: {str(e)}")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
+                    temporary_file.write(uploaded_file.getvalue())
+                    temporary_path = Path(temporary_file.name)
+                st.session_state["results"] = analyze_cim(
+                    temporary_path,
+                    api_key=api_key,
+                    max_pages=int(max_pages),
+                )
+                st.session_state["feedback_log"] = []
+            except Exception as exc:
+                st.session_state.pop("results", None)
+                st.error(f"Analysis failed: {exc}")
             finally:
-                os.unlink(tmp_path)
-
-# ─────────────────────────────────────────────────────────────
-# RESULTS
-# ─────────────────────────────────────────────────────────────
-if "results" in st.session_state:
-    results = st.session_state["results"]
-    red_flags = results.get("red_flags", [])
-    rule_findings = results.get("rule_findings", [])
-
+                if temporary_path and temporary_path.exists():
+                    temporary_path.unlink()
+results = st.session_state.get("results")
+if results:
     st.markdown("---")
-
-    # Metrics row
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Red Flags", len(red_flags))
-    c2.metric("Verified Math Issues", len(rule_findings))
-    high_count = len([f for f in red_flags if "HIGH" in f.get("severity", "").upper()])
-    c3.metric("High Severity", high_count)
-    c4.metric("Chars Analyzed", f"{results.get('text_length', 0):,}")
-
-    if results.get('text_length', 0) >= 100000:
-        st.warning("This document exceeded the 100,000 character analysis limit. The engine processed the first 100k characters. For complete coverage, consider splitting the PDF or deleting unnecessary parts.")
-
-    # ── Deterministic engine findings (verified, no LLM) ──
+    red_flags = results["red_flags"]
+    rule_findings = results["rule_findings"]
+    metrics = st.columns(5)
+    metrics[0].metric("Red Flags", len(red_flags))
+    metrics[1].metric("Verified Math", len(rule_findings))
+    metrics[2].metric("High Severity", sum(f["severity"] in {"HIGH", "CRITICAL"} for f in red_flags))
+    metrics[3].metric("Chunks", results.get("chunks_analyzed", 1))
+    metrics[4].metric("Tables Parsed", results.get("table_count", 0))
+    if results.get("used_ocr"):
+        st.info("Scanned PDF detected — OCR was enabled for extraction.")
+    if results.get("was_truncated"):
+        st.warning(
+            f"Document analyzed in {results.get('chunks_analyzed', 1)} overlapping chunk(s). "
+            f"Full extracted length: {results['source_text_length']:,} characters."
+        )
+        with st.expander("Chunk coverage details"):
+            st.json(results.get("chunk_ranges", []))
     if rule_findings:
-        items_html = "".join(
-            f'<div class="verified-item"><b>[{f["severity"]}] {f["category"]}</b> — {f["detail"]}</div>'
-            for f in rule_findings
-        )
-        st.markdown(
-            f'<div class="verified-box"><div class="verified-title">✓ Verified by Arithmetic Engine (deterministic, no AI)</div>{items_html}</div>',
-            unsafe_allow_html=True,
-        )
-
-    # ── Overall risk assessment ──
-    overall = get_overall_risk(results.get("raw_analysis", ""))
-    if overall:
-        st.markdown(
-            f'<div style="background: #14161C; border: 1px solid rgba(201,168,76,0.3); border-radius: 8px; padding: 20px; margin: 16px 0;">'
-            f'<div style="font-family: monospace; font-size: 11px; font-weight: bold; letter-spacing: 0.1em; color: #C9A84C; text-transform: uppercase; margin-bottom: 12px;">Overall Risk Assessment</div>'
-            f'<div style="font-size: 14px; line-height: 1.7; color: #B0BAC9;">{md_to_html(overall)}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    # ── Red flags ──
-    st.markdown("### 🚨 Red Flags")
+        st.subheader("Verified arithmetic findings")
+        for finding in rule_findings:
+            st.markdown(
+                f"**{_to_safe_html(finding['severity'])} · "
+                f"{_to_safe_html(finding['category'])}** — "
+                f"{_to_safe_html(finding['detail'])}<br>"
+                f'<span class="meta">{_to_safe_html(_format_provenance(finding))}</span>',
+                unsafe_allow_html=True,
+            )
+    overall_risk = get_overall_risk(results["raw_analysis"])
+    if overall_risk:
+        st.subheader("Overall risk assessment")
+        st.markdown(_to_safe_html(overall_risk), unsafe_allow_html=True)
+    st.subheader("Red flags")
     if not red_flags:
-        st.info("No structured red flags parsed. See raw analysis below.")
-    for flag in red_flags:
-        sev = flag.get("severity", "MEDIUM").upper()
-        sev_color = get_severity_color(sev)
-        category = flag.get("category", "UNKNOWN")
-        quote = md_to_html(flag.get("quote", "No quote extracted."))
-        explanation = md_to_html(flag.get("explanation", ""))
-        
+        st.info("No structured flags were parsed. Review the raw model output below.")
+    for index, flag in enumerate(red_flags):
+        severity = flag["severity"]
         st.markdown(
-            f'<div style="background: #14161C; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; margin-bottom: 16px;">'
-            f'<div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-wrap: wrap; gap: 8px;">'
-            f'<span style="font-family: monospace; font-size: 10px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; background: rgba(201,168,76,0.15); color: #C9A84C;">{html_module.escape(category)}</span>'
-            f'<span style="font-family: monospace; font-size: 10px; font-weight: bold; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.05); color: {sev_color};">{sev}</span>'
-            f'</div>'
-            f'<div style="padding: 20px;">'
-            f'<div style="font-family: monospace; font-size: 12px; color: #B0BAC9; border-left: 3px solid #C9A84C; padding: 10px 16px; background: rgba(201,168,76,0.05); border-radius: 0 6px 6px 0; margin-bottom: 16px; line-height: 1.6;">{quote}</div>'
-            f'<div style="font-size: 13px; line-height: 1.7; color: #B0BAC9;">{explanation}</div>'
-            f'</div>'
-            f'</div>',
+            f'<div class="flag-card"><b>{_to_safe_html(flag["category"])}</b> '
+            f'<span style="color:{get_severity_color(severity)}">{_to_safe_html(severity)}</span><br><br>'
+            f'<div class="quote">{_to_safe_html(flag.get("quote") or "No quote extracted.")}</div><br>'
+            f'{_to_safe_html(flag.get("explanation") or "")}<br>'
+            f'<span class="meta">{_to_safe_html(_format_provenance(flag))}</span>'
+            f"</div>",
             unsafe_allow_html=True,
         )
-
-    # ── Raw output ──
-    with st.expander("View Raw MD Engine Output"):
-        st.text(results.get("raw_analysis", ""))
-
-# ─────────────────────────────────────────────────────────────
-# FOOTER
-# ─────────────────────────────────────────────────────────────
+        fb_left, fb_right, _ = st.columns([1, 1, 4])
+        if fb_left.button("Confirm flag", key=f"confirm_{index}"):
+            _record_feedback(flag, "confirmed")
+            st.toast("Flag confirmed.")
+        if fb_right.button("False positive", key=f"reject_{index}"):
+            _record_feedback(flag, "false_positive")
+            st.toast("Marked as false positive.")
+    feedback_log = st.session_state.get("feedback_log", [])
+    if feedback_log:
+        st.download_button(
+            "Download feedback JSON",
+            data=json.dumps(feedback_log, indent=2),
+            file_name="cim_sight_feedback.json",
+            mime="application/json",
+        )
+    with st.expander("View raw MD Engine output"):
+        st.text(results["raw_analysis"])
 st.markdown("---")
-st.markdown(
-    '<div style="font-family:JetBrains Mono,monospace; font-size:11px; color:#4A5568; text-align:center;">'
-    'CIM-SIGHT AI · Built by Ichita Kawabata · For Institutional Analyst Use Only · Not Financial Advice'
-    '</div>',
-    unsafe_allow_html=True,
-)
+st.caption("CIM-SIGHT AI · For institutional analyst use only · Not financial advice")
