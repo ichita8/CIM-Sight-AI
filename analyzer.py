@@ -267,7 +267,7 @@ def _classify_cerebras_error(exc: Exception) -> str:
     name = exc.__class__.__name__.lower()
     if "authentication" in name or "401" in message or "invalid api key" in message:
         return "Invalid Cerebras API key. Check CEREBRAS_API_KEY and try again."
-    if "404" in message or "model not found" in message or "does not exist" in message or "not available" in message
+    if "404" in message or "model not found" in message or "does not exist" in message or "not available" in message:
         return (
             "Cerebras model unavailable. Verify CEREBRAS_MODEL and that your account "
             f"can access {os.environ.get('CEREBRAS_MODEL', DEFAULT_CEREBRAS_MODEL)}."
