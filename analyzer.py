@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-import pymupdf  # PyMuPDF — lightweight, no torch, no libGL needed
+import fitz as pymupdf  # PyMuPDF — lightweight, no torch, no libGL needed
 
 from rule_checks import run_rule_based_checks
 
