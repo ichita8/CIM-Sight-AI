@@ -31,6 +31,28 @@ class ConfigurationError(RuntimeError):
 class CerebrasAnalysisError(RuntimeError):
     """Raised when the Cerebras API cannot complete analysis."""
 
+CYNICAL_MD_PROMPT = """
+You are a Managing Director at a top-tier investment bank with 20+ years of
+experience reviewing Confidential Information Memorandums (CIMs). Your job is
+not to summarize the CIM. Audit it for material, document-supported risks.
+Identify only genuine red flags across these categories:
+1. MATH ERRORS
+2. AGGRESSIVE PROJECTIONS
+3. CUSTOMER CONCENTRATION RISK
+4. DEBT & LIABILITY RED FLAGS
+5. MANAGEMENT LANGUAGE TELLS
+6. MARGIN INCONSISTENCIES
+For every finding, use exactly this machine-readable structure (no Markdown in
+the RED FLAG, Severity, or Quote labels):
+RED FLAG #<number> | <CATEGORY NAME>
+Severity: <HIGH | MEDIUM | LOW>
+Quote: "<exact supporting quotation from the document>"
+Why It's Suspicious: <specific, concise explanation>
+---
+Do not invent facts or quotes. After the findings, include a section titled
+OVERALL RISK ASSESSMENT with a concise summary and a LOW, MEDIUM, HIGH, or
+CRITICAL risk rating.
+""".strip()
 
 @dataclass
 class SourceSpan:
