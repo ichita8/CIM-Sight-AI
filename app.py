@@ -73,9 +73,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<p class="subtle">PyMuPDF extracts tables and scanned text when needed. '
-    'PyMuPDF extracts text and tables from the CIM. '
-    'Deterministic checks run on the full document before chunked LLM review.'
+    '<p class="subtle">PyMuPDF extracts text and tables from the CIM. '
+    'Deterministic checks run on the full document before chunked LLM review.',
     unsafe_allow_html=True,
 )
 configured_key = _load_api_key()
