@@ -70,6 +70,15 @@ OVERALL RISK ASSESSMENT with a concise summary and a LOW, MEDIUM, HIGH, or
 CRITICAL risk rating.
 """.strip()
 
+  KNOWN_CATEGORIES = (
+    "MATH ERRORS",
+    "AGGRESSIVE PROJECTIONS",
+    "CUSTOMER CONCENTRATION RISK",
+    "DEBT & LIABILITY RED FLAGS",
+    "MANAGEMENT LANGUAGE TELLS",
+    "MARGIN INCONSISTENCIES",
+    )
+
 @dataclass
 class SourceSpan:
     paragraph_id: str | None = None
@@ -440,14 +449,7 @@ def analyze_cim(
         "table_count": extraction.table_count,
         "doc_preview": raw_text[:500],
     }
-    KNOWN_CATEGORIES = (
-    "MATH ERRORS",
-    "AGGRESSIVE PROJECTIONS",
-    "CUSTOMER CONCENTRATION RISK",
-    "DEBT & LIABILITY RED FLAGS",
-    "MANAGEMENT LANGUAGE TELLS",
-    "MARGIN INCONSISTENCIES",
-    )
+
 def get_severity_color(severity: str) -> str:
     normalized = severity.upper()
     if "HIGH" in normalized or "CRITICAL" in normalized:
