@@ -193,6 +193,76 @@ def extract_document_from_pdf(
 def extract_text_from_pdf(pdf_path: str | Path, max_pages: int = DEFAULT_MAX_PAGES) -> str:
     """Backward-compatible helper returning the full Markdown only."""
     return extract_document_from_pdf(pdf_path, max_pages=max_pages).markdown
+def resolve_provenance(
+    quote: str,
+    markdown: str,
+    source_spans: list[SourceSpan],
+    *,
+    char_offset: int | None = None,
+) -> dict[str, Any]:
+    """Map a finding back to its source page/table using the extracted spans."""
+    empty = {
+        "page_number": None,
+        "table_id": None,
+        "paragraph_id": None,
+        "ocr_confidence": None,
+    }
+    if not source_spans:
+        return empty
+
+    # Track each span's position in the concatenated markdown
+    cursor = 0
+    span_ranges: list[tuple[int, int, SourceSpan]] = []
+    for span in source_spans:
+        length = len(span.text)
+        span_ranges.append((cursor, cursor + length, span))
+        cursor += length + 2  # +2 for "\n\n" separator
+
+    # If char_offset is given, find the span covering that position
+    if char_offset is not None:
+        for start, end, span in span_ranges:
+            if start <= char_offset < end:
+                return {
+                    "page_number": span.page_number,
+                    "table_id": span.table_id,
+                    "paragraph_id": span.paragraph_id,
+                    "ocr_confidence": span.ocr_confidence,
+                }
+
+    # Otherwise fuzzy-match the quote against each span's text
+    search_text = (quote or "").strip().lower()
+    if search_text:
+        best_span = None
+        best_ratio = 0.0
+        for span in source_spans:
+            span_text = span.text.lower()
+            if search_text in span_text:
+                return {
+                    "page_number": span.page_number,
+                    "table_id": span.table_id,
+                    "paragraph_id": span.paragraph_id,
+                    "ocr_confidence": span.ocr_confidence,
+                }
+            ratio = SequenceMatcher(None, search_text, span_text).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_span = span
+        if best_span and best_ratio > 0.4:
+            return {
+                "page_number": best_span.page_number,
+                "table_id": best_span.table_id,
+                "paragraph_id": best_span.paragraph_id,
+                "ocr_confidence": best_span.ocr_confidence,
+            }
+
+    # Fallback: first span
+    first = source_spans[0]
+    return {
+        "page_number": first.page_number,
+        "table_id": first.table_id,
+        "paragraph_id": first.paragraph_id,
+        "ocr_confidence": first.ocr_confidence,
+    }
 def attach_provenance_to_findings(
     findings: list[dict[str, Any]],
     markdown: str,
