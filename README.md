@@ -47,7 +47,7 @@ streamlit run app.py
 ```
 
 ### 3. Use It
-- Open the app in your browser (usually `http://localhost:8501`)
+- Open the app in your browser (https://ichita8.github.io/CIM-Sight-AI/)
 - Upload any CIM PDF
 - Click **Analyze CIM**
 
