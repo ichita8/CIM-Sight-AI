@@ -9,7 +9,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from cim_sight_pipeline import analyze_cim
+from cim_sight_pipeline import analyze.py
 from cim_sight_pipeline.config import ExperimentConfig, get_preset, all_presets
 from cim_sight_pipeline.metrics import ExperimentLogger
 
