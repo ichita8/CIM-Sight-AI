@@ -1,75 +1,81 @@
-# CIM-Sight AI
+# CIM-Sight AI v2.0
 
-**Institutional Deal Intelligence  AI-Powered CIM Screener**
+**Institutional Deal Intelligence — AI-Powered CIM Screener**
 
 Built by Ichita Kawabata · Georgia College Early College
+
+> For institutional analyst use only. Not financial advice.
 
 ---
 
 ## What It Does
 
-CIM-Sight AI automatically audits Confidential Information Memorandums (CIMs), surfacing hidden risks, math errors, and financial red flags the way a 20-year Managing Director actually would.
+CIM-Sight AI audits Confidential Information Memorandums (CIMs) and surfaces
+hidden risks, math errors, and financial red flags the way a 20-year Managing
+Director actually would — then grounds every finding in a verbatim quote and a
+deterministic arithmetic check.
 
-**6 Red Flag Categories:**
-- Math Errors
-- Aggressive Projections
-- Customer Concentration Risk
-- Debt & Liability Red Flags
-- Management Language Tells
-- Margin Inconsistencies
+### v2.0 architecture (research-grade reliability)
 
-Each flag includes a **verbatim quote**, **severity rating** (HIGH / MEDIUM / LOW), and an **MD-level explanation**.
+- **Config-driven** — every run is fully specified by an `ExperimentConfig`
+  (parser, prompt style, model, temperature, chunk size, verification gates).
+- **Prompt-injection defense** — the system prompt is fixed and never contains
+  document text; the document only appears inside `<DOCUMENT>` tags in the
+  user message, so the model treats it as untrusted data.
+- **Quote verification** — every LLM flag's quote is located in the extracted
+  text; hallucinated quotes are discarded and counted.
+- **Explanation verification** — the explanation must reuse meaningful words
+  from the quote, or the flag is dropped.
+- **Absolute-offset provenance** — each finding maps back to a page number via
+  char-offset → source-span lookup (no fuzzy guessing).
+- **Chunk recovery** — a failed LLM chunk is logged and skipped; it never
+  kills the whole run.
+- **Experiment logging** — every run is written to `experiments/logs/` with
+  config, git commit, file hash, and metrics for reproducibility.
+
+### 6 Red Flag Categories
+
+1. Math Errors
+2. Aggressive Projections
+3. Customer Concentration Risk
+4. Management Language Tells
+5. Disclosure Gaps
+6. Prompt Injection (text attempting to alter model behavior)
+
+Each flag includes a **verbatim quote**, **severity rating** (HIGH / MEDIUM / LOW),
+**section**, **page number**, and an **MD-level explanation**.
 
 ---
 
 ## Stack
 
 | Component | Tool | Cost |
-|-----------|------|------|
+| --- | --- | --- |
 | PDF Extraction | PyMuPDF | Free |
 | AI Model | Cerebras GPT-OSS-120B | Free |
 | Dashboard | Streamlit | Free |
+| Experiment Logging | Local JSON | Free |
 
-**Total operating cost: $0/run**
+**Total operating cost: $0 / run**
 
 ---
 
 ## Setup
 
 ### 1. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
+### 2. Set your Cerebras API key
+Either add it to .streamlit/secrets.toml:
 
-### 2. Run the App
-```bash
+CEREBRAS_API_KEY = "your-key-here"
+…or paste it into the app's API-key field at runtime.
+
+### 3. Run the App
 streamlit run app.py
-```
 
-### 3. Use It
-- Open the app in your browser (https://ichita8.github.io/CIM-Sight-AI/)
-- Upload any CIM PDF
-- Click **Analyze CIM**
-
----
-
-## Project Structure
-
-```
-cimsight/
-app.py          # Streamlit dashboard
-analyzer.py     # AI pipeline + Cynical MD prompt
-index.html      # Landing page
-requirements.txt
-README.md
-```
-
----
-
-## Landing Page
-
-Open `index.html` directly in a browser or host it on GitHub Pages for a live URL.
-
----
-
-*For institutional analyst use only. Not financial advice.*
+### 4. Run the Tests
+pip install -r requirements-dev.txt
+pytest
