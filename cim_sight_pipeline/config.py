@@ -7,83 +7,57 @@ from typing import Any
 @dataclass
 class ExperimentConfig:
     """
-    Central configuration for a CIM-Sight AI analysis run.
+    Configuration for a CIM-Sight AI analysis run.
 
-    Current production configuration:
-        parser:
-            "pymupdf"
-
-        prompt:
-            "generic" or "cim_sight"
+    Current experiment:
+        Parser: PyMuPDF
+        Prompt: Generic or CIM-Sight
     """
 
-    # ------------------------------------------------------------------
-    # Core experiment variables
-    # ------------------------------------------------------------------
-
+    # Experiment variables
     parser: str = "pymupdf"
     prompt: str = "cim_sight"
 
-    # ------------------------------------------------------------------
     # LLM configuration
-    # ------------------------------------------------------------------
-
     model: str = "gpt-oss-120b"
     temperature: float = 0.0
     max_tokens: int = 4096
 
-    # Cerebras OpenAI-compatible endpoint
+    # API configuration
     base_url: str = "https://api.cerebras.ai/v1"
     api_key: str | None = None
 
-    # ------------------------------------------------------------------
     # Document processing
-    # ------------------------------------------------------------------
-
     max_pages: int = 100
     chunk_size: int = 12000
     chunk_overlap: int = 1000
 
-    # ------------------------------------------------------------------
     # Evidence validation
-    # ------------------------------------------------------------------
-
     verify_quotes: bool = True
     verify_explanations: bool = True
     scope_quote_to_paragraph: bool = True
 
-    # ------------------------------------------------------------------
     # Reliability
-    # ------------------------------------------------------------------
-
     max_retries: int = 3
     base_backoff: float = 1.5
 
-    # ------------------------------------------------------------------
-    # Optional experiment metadata
-    # ------------------------------------------------------------------
-
+    # Experiment metadata
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the configuration into a JSON-serializable dictionary.
-
-        Used by ExperimentLogger for reproducibility.
-        """
+        """Return a serializable representation for experiment logging."""
         return asdict(self)
 
 
-# ----------------------------------------------------------------------
-# Presets
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Experiment presets
+# ---------------------------------------------------------------------------
 
 PRESETS: dict[str, ExperimentConfig] = {
     "PyMuPDF + Generic": ExperimentConfig(
         parser="pymupdf",
         prompt="generic",
     ),
-
     "PyMuPDF + CIM-Sight": ExperimentConfig(
         parser="pymupdf",
         prompt="cim_sight",
@@ -93,16 +67,16 @@ PRESETS: dict[str, ExperimentConfig] = {
 
 def get_preset(name: str) -> ExperimentConfig:
     """
-    Return a fresh ExperimentConfig for the requested preset.
+    Return a fresh configuration for a named experiment preset.
 
-    A copy is returned so Streamlit can safely modify values such as
-    max_pages and temperature without changing the global preset.
+    A new instance is returned so modifying the configuration during
+    a Streamlit run does not modify the global preset.
     """
-
     if name not in PRESETS:
+        available = ", ".join(PRESETS.keys())
         raise ValueError(
             f"Unknown experiment preset: {name}. "
-            f"Available presets: {', '.join(PRESETS.keys())}"
+            f"Available presets: {available}"
         )
 
     original = PRESETS[name]
@@ -128,5 +102,5 @@ def get_preset(name: str) -> ExperimentConfig:
 
 
 def all_presets() -> list[str]:
-    """Return the available preset names in display order."""
+    """Return all available experiment preset names."""
     return list(PRESETS.keys())
