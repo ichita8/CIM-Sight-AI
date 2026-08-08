@@ -131,7 +131,7 @@ def check_margin_consistency(text: str, extraction: Optional[ExtractionResult] =
                     if abs(computed - stated) > MARGIN_TOLERANCE_PCT:
                         page = extraction.page_for_offset(mm.start()) if extraction else None
                         findings.append(RuleFinding(
-                            "MATH ERRORS", "HIGH",
+                            "MARGIN INCOSISTENCIES", "HIGH",
                             "Stated %s margin is %.1f%%, but %s (%,.0f) / %s (%,.0f, %s) = %.2f%%. "
                             "Discrepancy %.2f pts." % (
                                 mm.group(1), stated, num, fa.value, den, fb.value, fa.period,
@@ -180,7 +180,7 @@ def check_growth_claims(text: str, extraction: Optional[ExtractionResult] = None
         if abs(computed - stated) > GROWTH_TOLERANCE_PCT:
             page = extraction.page_for_offset(m.start()) if extraction else None
             findings.append(RuleFinding(
-                "MATH ERRORS", "HIGH",
+                "AGGRESSIVE PROJECTIONS", "HIGH",
                 "Stated growth %.1f%% from %,.0f to %,.0f, actual %.1f%%." % (stated, start, end, computed),
                 char_offset=m.start(), page_number=page,
                 raw_values=[m.group(1), m.group(2), "%s%%" % stated],
