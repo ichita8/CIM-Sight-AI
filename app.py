@@ -111,9 +111,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<p class="subtle">Config-driven pipeline · prompt-injection defense · quote verification · '
-    "absolute-offset provenance. PyMuPDF extracts; deterministic checks run first; "
-    'chunked LLM audit follows.</p>',
+    '<p class="subtle">2×2 factorial experiment: {Standard, PyMuPDF} parsing × '
+    "{Generic, CIM-Sight} prompting · T=0.0 · prompt-injection defense · quote "
+    'verification · absolute-offset provenance.</p>',
     unsafe_allow_html=True,
 )
 
