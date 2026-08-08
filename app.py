@@ -133,7 +133,7 @@ else:
         os.environ["CEREBRAS_API_KEY"] = key_input
 
 # --- Config selector ------------------------------------------------------
-preset_names = [p.name for p in all_presets()]
+preset_names = all_presets()
 preset_choice = st.selectbox("Experiment preset", preset_names, index=0)
 cfg = get_preset(preset_choice)
 
