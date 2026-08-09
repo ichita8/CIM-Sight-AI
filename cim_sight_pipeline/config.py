@@ -1,105 +1,69 @@
 from __future__ import annotations
-
-from dataclasses import asdict, dataclass, field
-from typing import Any
+from dataclasses import dataclass, asdict, replace
+import os
 
 
 @dataclass
 class ExperimentConfig:
+    """Config-driven architecture. Each preset is one cell of the 2x2 factorial
+    design: {Standard, PyMuPDF} parsing x {Generic, CIM-Sight} prompting.
+
+    Temperature is held constant at 0.0 across all four conditions to minimize
+    creativity/hallucination (a controlled constant in the experiment).
     """
-    Configuration for a CIM-Sight AI analysis run.
-
-    Current experiment:
-        Parser: PyMuPDF
-        Prompt: Generic or CIM-Sight
-    """
-
-    # Experiment variables
-    parser: str = "pymupdf"
-    prompt: str = "cim_sight"
-
-    # LLM configuration
+    name: str = "default"
+    parser: str = "pymupdf"            # "standard" | "pymupdf"
+    prompt_style: str = "cim"          # "generic" | "cim"
     model: str = "gpt-oss-120b"
-    temperature: float = 0.0
-    max_tokens: int = 4096
-
-    # API configuration
     base_url: str = "https://api.cerebras.ai/v1"
-    api_key: str | None = None
-
-    # Document processing
+    api_key_env: str = "CEREBRAS_API_KEY"
+    temperature: float = 0.0
     max_pages: int = 100
-    chunk_size: int = 12000
-    chunk_overlap: int = 1000
-
-    # Evidence validation
+    chunk_size: int = 6000
+    chunk_overlap: int = 400
+    max_retries: int = 4
+    base_backoff: float = 1.5
     verify_quotes: bool = True
     verify_explanations: bool = True
     scope_quote_to_paragraph: bool = True
 
-    # Reliability
-    max_retries: int = 3
-    base_backoff: float = 1.5
+    @property
+    def api_key(self) -> str:
+        return os.environ.get(self.api_key_env, "")
 
-    # Experiment metadata
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a serializable representation for experiment logging."""
-        return asdict(self)
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["api_key"] = "***" if self.api_key else ""
+        return d
 
 
-# ---------------------------------------------------------------------------
-# Experiment presets
-# ---------------------------------------------------------------------------
-
-PRESETS: dict[str, ExperimentConfig] = {
-    "PyMuPDF + Generic": ExperimentConfig(
-        parser="pymupdf",
-        prompt="generic",
-    ),
-    "PyMuPDF + CIM-Sight": ExperimentConfig(
-        parser="pymupdf",
-        prompt="cim_sight",
-    ),
+# 2x2 factorial design — the four experimental conditions.
+_PRESETS = {
+    # Condition 1: Standard text + Generic prompt (full baseline)
+    "baseline_standard_generic": ExperimentConfig(
+        name="baseline_standard_generic", parser="standard", prompt_style="generic"),
+    # Condition 2: Standard text + CIM-Sight prompt (prompting effect only)
+    "prompt_only_standard_cim": ExperimentConfig(
+        name="prompt_only_standard_cim", parser="standard", prompt_style="cim"),
+    # Condition 3: PyMuPDF markdown + Generic prompt (parsing effect only)
+    "parser_only_pymupdf_generic": ExperimentConfig(
+        name="parser_only_pymupdf_generic", parser="pymupdf", prompt_style="generic"),
+    # Condition 4: PyMuPDF markdown + CIM-Sight prompt (full CIM-Sight AI)
+    "full_cim_sight": ExperimentConfig(
+        name="full_cim_sight", parser="pymupdf", prompt_style="cim"),
 }
 
 
 def get_preset(name: str) -> ExperimentConfig:
-    """
-    Return a fresh configuration for a named experiment preset.
+    """Return a COPY of the preset so callers (e.g. the Streamlit sliders) cannot
+    mutate the shared singleton stored in _PRESETS."""
+    if name not in _PRESETS:
+        raise ValueError("Unknown preset '%s'. Available: %s" % (name, list(_PRESETS)))
+    return replace(_PRESETS[name])
 
-    A new instance is returned so modifying the configuration during
-    a Streamlit run does not modify the global preset.
-    """
-    if name not in PRESETS:
-        available = ", ".join(PRESETS.keys())
-        raise ValueError(
-            f"Unknown experiment preset: {name}. "
-            f"Available presets: {available}"
-        )
 
-    original = PRESETS[name]
-
-    return ExperimentConfig(
-        parser=original.parser,
-        prompt=original.prompt,
-        model=original.model,
-        temperature=original.temperature,
-        max_tokens=original.max_tokens,
-        base_url=original.base_url,
-        api_key=original.api_key,
-        max_pages=original.max_pages,
-        chunk_size=original.chunk_size,
-        chunk_overlap=original.chunk_overlap,
-        verify_quotes=original.verify_quotes,
-        verify_explanations=original.verify_explanations,
-        scope_quote_to_paragraph=original.scope_quote_to_paragraph,
-        max_retries=original.max_retries,
-        base_backoff=original.base_backoff,
-        metadata=dict(original.metadata),
-    )
-
+def all_presets() -> list:
+    return list(_PRESETS)
 
 def all_presets() -> list[str]:
     """Return all available experiment preset names."""
