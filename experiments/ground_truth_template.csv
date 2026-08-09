@@ -1,0 +1,7 @@
+doc_id,category,difficulty,page_number,section,original_text,modified_text,expected_detection,evidence
+sample_cim_01,Math/Arithmetic Errors,easy,4,Financial Highlights,"EBITDA margin of 22.4%","EBITDA margin of 24.1%",Detected,Page 4 Financial Highlights table
+sample_cim_01,Margin Inconsistencies,medium,29,Financial Highlights,,,"Detected","Page 4 says 22.4%; Page 29 says 24.1% for FY2023"
+sample_cim_01,Aggressive Projections,hard,12,Outlook,"Historical growth 8%; projected 25% CAGR",,Detected,Page 12 Outlook vs Page 8 historicals
+sample_cim_01,Customer Concentration Risk,medium,8,Revenue Breakdown,"Top 3 customers = 40% of revenue","Top 3 customers = 61% of revenue",Detected,Page 8 Revenue Breakdown table
+sample_cim_01,Debt and Liability Risk,hard,22,Balance Sheet,,,"Detected","Net debt / EBITDA = 5.2x with tight covenant on Page 22"
+sample_cim_01,Management Language Tells,easy,3,Executive Summary,"We are well-positioned","We are the undisputed industry leader",Detected,Page 3 Executive Summary
