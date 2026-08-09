@@ -38,7 +38,7 @@ class ExperimentConfig:
 
 
 # 2x2 factorial design — the four experimental conditions.
-_PRESETS = {
+PRESETS = {
     # Condition 1: Standard text + Generic prompt (full baseline)
     "baseline_standard_generic": ExperimentConfig(
         name="baseline_standard_generic", parser="standard", prompt_style="generic"),
@@ -56,15 +56,12 @@ _PRESETS = {
 
 def get_preset(name: str) -> ExperimentConfig:
     """Return a COPY of the preset so callers (e.g. the Streamlit sliders) cannot
-    mutate the shared singleton stored in _PRESETS."""
-    if name not in _PRESETS:
-        raise ValueError("Unknown preset '%s'. Available: %s" % (name, list(_PRESETS)))
-    return replace(_PRESETS[name])
+    mutate the shared singleton stored in PRESETS."""
+    if name not in PRESETS:
+        raise ValueError("Unknown preset '%s'. Available: %s" % (name, list(PRESETS)))
+    return replace(PRESETS[name])
 
 
 def all_presets() -> list:
-    return list(_PRESETS)
-
-def all_presets() -> list[str]:
     """Return all available experiment preset names."""
-    return list(PRESETS.keys())
+    return list(PRESETS)
