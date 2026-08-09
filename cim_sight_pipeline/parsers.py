@@ -17,6 +17,7 @@ class ExtractionResult:
     spans: list = field(default_factory=list)   # list[SourceSpan]
     page_count: int = 0
     tables: list = field(default_factory=list)  # list[str] markdown tables
+    parser: str = "standard"
 
     def page_for_offset(self, offset: int):
         """Phase 3 (#9): provenance via absolute offsets -> page mapping."""
@@ -41,6 +42,8 @@ class ExtractionResult:
 
 
 def extract(pdf_path: str, config: ExperimentConfig) -> ExtractionResult:
+    if config.parser == "standard":
+        return _extract_standard(pdf_path, config)
     if config.parser == "pymupdf":
         return _extract_pymupdf(pdf_path, config)
     if config.parser == "docling":
@@ -48,7 +51,37 @@ def extract(pdf_path: str, config: ExperimentConfig) -> ExtractionResult:
     raise ValueError("Unknown parser: %s" % config.parser)
 
 
+def _extract_standard(pdf_path: str, config: ExperimentConfig) -> ExtractionResult:
+    """Standard text extraction: raw page text only, NO table structure.
+
+    This is the 'Standard Text' condition — what a basic PDF-to-text tool
+    produces. Tables collapse into unstructured columns of numbers with no
+    row/column relationships preserved.
+    """
+    import fitz  # PyMuPDF
+    spans, parts = [], []
+    cursor = 0
+    doc = fitz.open(pdf_path)
+    max_pages = min(config.max_pages, doc.page_count)
+    for i in range(max_pages):
+        page_text = doc[i].get_text("text") or ""
+        if i > 0:
+            page_text = "\n\n" + page_text
+        start = cursor
+        end = cursor + len(page_text)
+        spans.append(SourceSpan(start=start, end=end, page_number=i + 1))
+        parts.append(page_text)
+        cursor = end
+    doc.close()
+    return ExtractionResult(text="".join(parts), spans=spans,
+                            page_count=max_pages, tables=[], parser="standard")
+
+
 def _extract_pymupdf(pdf_path: str, config: ExperimentConfig) -> ExtractionResult:
+    """Structure-preserving extraction: page text PLUS reconstructed markdown
+    tables appended inline. This is the 'PyMuPDF Markdown' condition —
+    table row/column structure is preserved for the model.
+    """
     import fitz  # PyMuPDF
     spans, tables, parts = [], [], []
     cursor = 0
@@ -58,11 +91,15 @@ def _extract_pymupdf(pdf_path: str, config: ExperimentConfig) -> ExtractionResul
         page = doc[i]
         page_text = page.get_text("text") or ""
         try:
-            tabs = page.find_tables()
-            for t in tabs.tables:
+            page_tables = []
+            for t in page.find_tables().tables:
                 rows = t.extract()
                 if rows:
-                    tables.append(_table_to_markdown(rows))
+                    md = _table_to_markdown(rows)
+                    tables.append(md)
+                    page_tables.append(md)
+            if page_tables:
+                page_text = page_text.rstrip() + "\n\n" + "\n\n".join(page_tables)
         except Exception:
             pass
         if i > 0:
@@ -73,8 +110,8 @@ def _extract_pymupdf(pdf_path: str, config: ExperimentConfig) -> ExtractionResul
         parts.append(page_text)
         cursor = end
     doc.close()
-    full = "".join(parts)
-    return ExtractionResult(text=full, spans=spans, page_count=max_pages, tables=tables)
+    return ExtractionResult(text="".join(parts), spans=spans,
+                            page_count=max_pages, tables=tables, parser="pymupdf")
 
 
 def _extract_docling(pdf_path: str, config: ExperimentConfig) -> ExtractionResult:
@@ -88,9 +125,8 @@ def _extract_docling(pdf_path: str, config: ExperimentConfig) -> ExtractionResul
     converter = DocumentConverter()
     result = converter.convert(pdf_path)
     md = result.document.export_to_markdown()
-    # Docling page-offset mapping varies by version; fall back to single span.
     spans = [SourceSpan(start=0, end=len(md), page_number=1)]
-    return ExtractionResult(text=md, spans=spans, page_count=1)
+    return ExtractionResult(text=md, spans=spans, page_count=1, parser="docling")
 
 
 def _table_to_markdown(rows):
